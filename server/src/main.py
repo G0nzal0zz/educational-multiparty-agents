@@ -1,6 +1,9 @@
 import asyncio
 import contextlib
 import io
+import json
+import socket
+import sys
 import tempfile
 import time
 import wave
@@ -24,9 +27,15 @@ from starlette.staticfiles import StaticFiles
 from assemblyai_stt import AssemblyAISTT
 from cartesia_prompts import CARTESIA_TTS_SYSTEM_PROMPT
 from cartesia_tts import CartesiaTTS
-from events import (AgentChunkEvent, AgentEndEvent, STTOutputEvent,
-                    ToolCallEvent, ToolResultEvent, VoiceAgentEvent,
-                    event_to_dict)
+from events import (
+    AgentChunkEvent,
+    AgentEndEvent,
+    STTOutputEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+    VoiceAgentEvent,
+    event_to_dict,
+)
 from utils import merge_async_iters
 
 load_dotenv()
@@ -62,10 +71,10 @@ def confirm_order(order_summary: str) -> str:
 
 
 system_prompt = f"""
-You are a helpful teacher. Your goal is to teach about a topic to some students. 
+You are a helpful teacher. Your goal is to teach about a topic to some students.
 Be concise and friendly.
 
-Available topics: history, science, sports and culture. 
+Available topics: history, science, sports and culture.
 
 {CARTESIA_TTS_SYSTEM_PROMPT}
 """
@@ -362,6 +371,23 @@ pipeline = (
 )
 
 
+async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def socket_audio_stream():
+        while True:
+            data = await reader.read(4096)
+            if not data:
+                break
+            yield data
+
+    output_stream = pipeline.atransform(socket_audio_stream())
+
+    # TODO: Send response back to client
+    # async for event in output_stream:
+
+    writer.close()
+    await writer.wait_closed()
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -379,8 +405,11 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.send_json(event_to_dict(event))
 
 
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+async def start_server():
+    server = await asyncio.start_server(handle_client, "0.0.0.0", 9000)
+    async with server:
+        await server.serve_forever()
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", port=8000, reload=True)
+    asyncio.run(start_server())
