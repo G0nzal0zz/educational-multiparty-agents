@@ -13,12 +13,22 @@ processing, and TTS output.
 import base64
 import time
 from dataclasses import dataclass
+from enum import Enum
 from typing import Literal, Union
 
 
 def _now_ms() -> int:
     """Return current Unix timestamp in milliseconds."""
     return int(time.time() * 1000)
+
+
+class Role(Enum):
+    TEACHER = 1
+    AGENT_STUDENT = 2
+    HUMAN_STUDENT = 3
+
+
+# TODO: Register the role in each event
 
 
 @dataclass
