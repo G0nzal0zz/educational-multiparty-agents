@@ -102,7 +102,7 @@ pipeline = (
 )
 
 
-async def start_server():
+async def server():
     clientHandler = ClientHandler(pipeline)
     server = await asyncio.start_server(clientHandler.handle, "127.0.0.1", 9000)
     async with server:
@@ -110,4 +110,4 @@ async def start_server():
 
 
 if __name__ == "__main__":
-    asyncio.run(start_server())
+    asyncio.run(server())

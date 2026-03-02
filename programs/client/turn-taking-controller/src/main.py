@@ -1,25 +1,29 @@
 import argparse
 import asyncio
+import json
 import socket
 from sys import platform
 
 import numpy as np
 import sounddevice as sd
 import speech_recognition as sr
+from shared_lib.events import event_to_dict
 
 from whisper_stt import WhisperSTT
 
 HOST = "127.0.0.1"
 PORT = 9000
 
-async def send_audio(whisper: WhisperSTT, sock: socket.socket):
+
+async def send_audio(sock: socket.socket, whisper: WhisperSTT):
     whisper.audio_model
     loop = asyncio.get_running_loop()
     async for data in whisper.STT():
-        await loop.sock_sendall(sock, data)
+        json_data = json.dumps(event_to_dict(data))
+        await loop.sock_sendall(sock, json_data.encode())
 
 
-async def receive_and_play(sock):
+async def receive_and_play(sock: socket.socket):
     loop = asyncio.get_running_loop()
 
     # Match the server audio: float32, mono
@@ -32,17 +36,32 @@ async def receive_and_play(sock):
             if not data:
                 break
 
-            # Interpret the bytes as float32, not int16
             audio_chunk = np.frombuffer(data, dtype=np.float32)
-            stream.write(audio_chunk)
+            _ = stream.write(audio_chunk)
 
     except ConnectionResetError:
-        # Server closed abruptly → normal end of audio
         pass
 
     finally:
         stream.stop()
         stream.close()
+
+
+async def start(whisper: WhisperSTT):
+    loop = asyncio.get_running_loop()
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setblocking(False)
+    await loop.sock_connect(sock, (HOST, PORT))
+
+    send_task = asyncio.create_task(send_audio(sock, whisper))
+    recv_task = asyncio.create_task(receive_and_play(sock))
+
+    try:
+        _ = await asyncio.gather(send_task, recv_task)
+    finally:
+        _ = send_task.cancel()
+        _ = recv_task.cancel()
 
 
 async def main():
@@ -85,6 +104,9 @@ async def main():
         )
     args = parser.parse_args()
 
+    # Set default microphone
+    source = sr.Microphone(sample_rate=16000)
+
     # Important for linux users.
     # Prevents permanent application hang and crash by using the wrong Microphone
     if "linux" in platform:
@@ -97,25 +119,12 @@ async def main():
         else:
             for index, name in enumerate(sr.Microphone.list_microphone_names()):
                 if mic_name in name:
-                    args.source = sr.Microphone(sample_rate=16000, device_index=index)
+                    source = sr.Microphone(sample_rate=16000, device_index=index)
                     break
-    else:
-        args.source = sr.Microphone(sample_rate=16000)
 
-    loop = asyncio.get_running_loop()
+    whisper = WhisperSTT(args, source)
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setblocking(False)
-    await loop.sock_connect(sock, (HOST, PORT))
-
-    send_task = asyncio.create_task(send_audio(sock))
-    recv_task = asyncio.create_task(receive_and_play(sock))
-
-    try:
-        await asyncio.gather(send_task, recv_task)
-    finally:
-        send_task.cancel()
-        recv_task.cancel()
+    await start(whisper)
 
 
 if __name__ == "__main__":

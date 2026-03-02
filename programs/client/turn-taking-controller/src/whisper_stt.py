@@ -7,6 +7,7 @@ from sys import platform
 from time import sleep
 
 import numpy as np
+import shared_lib.events
 import speech_recognition as sr
 import torch
 import whisper
@@ -92,7 +93,7 @@ class WhisperSTT:
 
                 if phrase_complete and isinstance(text, str):
                     transcription.append(text)
-                    yield text.encode()
+                    yield shared_lib.events.UserInputEvent.create(text)
                 else:
                     transcription[-1] = text
 

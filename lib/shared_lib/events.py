@@ -34,27 +34,23 @@ class Role(Enum):
 @dataclass
 class UserInputEvent:
     """
-    Event emitted when raw audio data is received from the user.
-
-    This is the entry point of the voice agent pipeline. Audio should be
-    in PCM format (16-bit, mono, 16kHz) for optimal processing by the STT stage.
+    Event emitted when audio from the user is transcribed.
     """
 
     type: Literal["user_input"]
 
-    audio: bytes
+    transcript: str
     """
-    Raw PCM audio bytes from the user's microphone.
-    Expected format: 16-bit signed integer, mono channel, 16kHz sample rate.
+    User audio transcription.
     """
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, audio: bytes) -> "UserInputEvent":
+    def create(cls, transcript: str) -> "UserInputEvent":
         """Factory method to create a UserInputEvent event with current timestamp."""
-        return cls(type="user_input", audio=audio, ts=_now_ms())
+        return cls(type="user_input", transcript=transcript, ts=_now_ms())
 
 
 @dataclass
