@@ -21,7 +21,6 @@ from collections.abc import AsyncIterator
 from sys import platform
 
 import numpy as np
-import shared_lib.events
 import sounddevice as sd
 import speech_recognition as sr
 from shared_lib.events import (

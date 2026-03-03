@@ -2,69 +2,26 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Literal
 
-import numpy as np
 from langchain_core.runnables import RunnableGenerator
-
-from src.chatterbox_tts import ChatterboxTTS
-from src.events import AgentChunkEvent, AgentEndEvent, VoiceAgentEvent
-from src.ollama_llm import OllamaLLM
-from src.prompts import TEACHER_PROMPT
-from src.utils import ClientHandler
-from src.whisper_stt import WhisperSTT
+from server_lib.chatterbox_tts import ChatterboxTTS
+from server_lib.events import AgentChunkEvent, AgentEndEvent, VoiceAgentEvent
+from server_lib.handler import ClientHandler
+from server_lib.ollama_llm import OllamaLLM
+from server_lib.prompts import TEACHER_PROMPT
 
 role: Literal["TEACHER", "STUDENT"] = "TEACHER"
 state: Literal["TEACHING", "LISTENING"] = "TEACHING"
 
-SAMPLE_RATE = 16000
-MAX_SECONDS = 5
-MAX_SAMPLES = SAMPLE_RATE * MAX_SECONDS
-
-
-async def _whisper_stt_stream(
-    audio_stream: AsyncIterator[VoiceAgentEvent],
-) -> AsyncIterator[VoiceAgentEvent]:
-    """
-    Continuously collect raw PCM audio and transcribe with Whisper.
-    Assumes:
-        - mono
-        - 16-bit PCM
-        - 16 kHz
-    """
-
-    if role == "TEACHER" and state == "TEACHING":
-        return
-
-    pcm_buffer = bytearray()
-    stt = WhisperSTT(sample_rate=16000)
-
-    async for chunk in audio_stream:
-        if not chunk:
-            continue
-
-        pcm_buffer.extend(chunk)
-
-        if len(pcm_buffer) >= MAX_SAMPLES * 2:  # 2 bytes per int16
-            # Copy buffer to NumPy safely
-            audio_int16 = np.frombuffer(bytes(pcm_buffer), dtype=np.int16)
-            audio_float32 = audio_int16.astype(np.float32) / 32768.0
-
-            async for event in stt.transcribe(audio_float32):
-                yield event
-
-            # Reset buffer for next segment
-            pcm_buffer.clear()
-
 
 async def _ollama_agent_stream(
-    event_stream: AsyncIterator[VoiceAgentEvent],
+    event_stream: AsyncIterator[bytes],
 ) -> AsyncIterator[VoiceAgentEvent]:
     ollamaLLM = OllamaLLM()
 
-    if role == "TEACHER" and state == "TEACHING":
-        global role, state
-        _ = ollamaLLM.generate_response(TEACHER_PROMPT)
-        role = "STUDENT"
-        state = "LISTENING"
+    # if role == "TEACHER" and state == "TEACHING":
+    #     _ = ollamaLLM.generate_response(TEACHER_PROMPT)
+    #     role = "STUDENT"
+    #     state = "LISTENING"
 
     async for event in event_stream:
         # Pass through all events to downstream consumers
@@ -95,10 +52,8 @@ async def _chatterbox_tts_stream(
             buffer = []
 
 
-pipeline = (
-    RunnableGenerator(_whisper_stt_stream)  # Audio -> STT events
-    | RunnableGenerator(_ollama_agent_stream)  # STT events -> STT + Agent events
-    | RunnableGenerator(_chatterbox_tts_stream)  # STT + Agent events -> All events
+pipeline = RunnableGenerator(_ollama_agent_stream) | RunnableGenerator(
+    _chatterbox_tts_stream
 )
 
 

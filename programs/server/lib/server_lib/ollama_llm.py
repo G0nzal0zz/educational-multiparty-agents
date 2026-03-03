@@ -1,7 +1,7 @@
 from langchain_ollama import ChatOllama
 
-from src.lib.events import AgentChunkEvent, AgentEndEvent
-from src.lib.prompts import TTS_SYSTEM_PROMPT
+from server_lib.events import AgentChunkEvent, AgentEndEvent
+from server_lib.prompts import TTS_SYSTEM_PROMPT
 
 ollama = ChatOllama(model="llama3.2:1b", temperature=0)
 

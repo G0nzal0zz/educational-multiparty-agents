@@ -2,7 +2,7 @@ import asyncio
 
 from langchain_core.runnables import RunnableSerializable
 
-from src.lib.events import TTSChunkEvent, VoiceAgentEvent
+from server_lib.events import TTSChunkEvent
 
 
 class ClientHandler:
@@ -18,6 +18,7 @@ class ClientHandler:
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         output_stream = self.pipeline.atransform(self.socket_audio_stream(reader))
+        TTSChunkEvent
 
         try:
             async for event in output_stream:

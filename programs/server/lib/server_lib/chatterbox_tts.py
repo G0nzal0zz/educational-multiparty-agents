@@ -3,7 +3,7 @@ import asyncio
 import torchaudio as ta
 from chatterbox.tts import ChatterboxTTS as Chatterbox
 
-from src.lib.events import TTSChunkEvent
+from server_lib.events import TTSChunkEvent
 
 model = Chatterbox.from_pretrained(device="cuda")
 
