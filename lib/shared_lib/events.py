@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Literal, Union
 
 
-def _now_ms() -> int:
+def now_ms() -> int:
     """Return current Unix timestamp in milliseconds."""
     return int(time.time() * 1000)
 
@@ -28,277 +28,175 @@ class Role(Enum):
     HUMAN_STUDENT = 3
 
 
-# TODO: Register the role in each event
-
-
-#
-# @dataclass
-# class UserInputEvent:
-#     """
-#     Event emitted when audio from the user is transcribed.
-#     """
-#
-# type: Literal["user_input"]
-#
-#     transcript: str
-#     """
-#     User audio transcription.
-#     """
-#
-#     ts: int
-#     """Unix timestamp (milliseconds since epoch) when the event was created."""
-#
-#     @classmethod
-#     def create(cls, transcript: str) -> "UserInputEvent":
-#         """Factory method to create a UserInputEvent event with current timestamp."""
-#         return cls(type="user_input", transcript=transcript, ts=_now_ms())
-#
-#
-@dataclass
-class STTChunkEvent:
-    """
-    Event emitted during speech-to-text processing for partial transcription results.
-
-    improving perceived responsiveness even before the final transcript is ready.
-    """
-
-    type: Literal["stt_chunk"]
-
-    transcript: str
-    """
-    Partial transcript text from the STT service.
-    This may be revised as more audio context becomes available.
-    Not guaranteed to be the final transcription.
-    """
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(cls, transcript: str) -> "STTChunkEvent":
-        """Factory method to create an STTChunkEvent event with current timestamp."""
-        return cls(type="stt_chunk", transcript=transcript, ts=_now_ms())
+# TURN TAKING CONTROLLER EVENTS (client -> server)
 
 
 @dataclass
-class STTOutputEvent:
+class TurnDecisionEvent:
     """
-    Event emitted when speech-to-text processing completes for a turn.
+    Event emitted when the Turn Taking Controller has taken a decision
+    about who should speak next.
 
-    This represents the final, formatted transcription of the user's speech.
-    Unlike STTChunkEvent, this is the complete and finalized transcript that will
-    be sent to the agent for processing.
-    """
-
-    type: Literal["stt_output"]
-
-    transcript: str
-    """
-    Final, complete transcript of the user's speech for this turn.
-    This is the text that will be processed by the LLM agent.
+    Sent from TTC to both agents after analyzing (one of the following):
+    - User speech transcription (local STT)
+    - Agent speech transcription (received from server)
     """
 
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
+    type: Literal["turn_decision"]
 
-    @classmethod
-    def create(cls, transcript: str) -> "STTOutputEvent":
-        """Factory method to create an STTOutputEvent event with current timestamp."""
-        return cls(type="stt_output", transcript=transcript, ts=_now_ms())
-
-
-STTEvent = Union[STTChunkEvent, STTOutputEvent]
-
-TurnTakingEvent = Union[STTChunkEvent, STTOutputEvent]
-
-
-@dataclass
-class AgentChunkEvent:
+    role: Role
     """
-    Event emitted during agent response generation for streaming text chunks.
-
-    As the LLM generates its response, it streams tokens incrementally.
-    These chunks enable real-time display of the agent's response and allow
-    the TTS stage to begin synthesis before the complete response is generated,
-    reducing overall latency.
+    Role of the party who should take the turn.
     """
 
-    type: Literal["agent_chunk"]
+    # text_role: Role
+    # """
+    # Role of the party who that led to the decision.
+    # """
 
     text: str
     """
-    Partial text chunk from the agent's streaming response.
-    Multiple chunks combine to form the complete agent output.
+    Text of the conversation that led to the decision.
     """
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, text: str) -> "AgentChunkEvent":
-        """Factory method to create an AgentChunkEvent event with current timestamp."""
-        return cls(type="agent_chunk", text=text, ts=_now_ms())
+    def create(cls, text: str, role: Role) -> "TurnDecisionEvent":
+        """Factory method to create a TurnDecisionEvent with current timestamp."""
+        return cls(type="turn_decision", text=text, role=role, ts=now_ms())
 
 
 @dataclass
-class AgentEndEvent:
+class TurnCancelledEvent:
     """
-    Event emitted when the agent has finished generating its response for a turn.
+    Event emitted when the TTC cancels the turn of an agent.
+    Human student's turn cannot be cancelled.
 
-    This signals downstream consumers (like TTS) that no more text is coming
-    for this turn and they should flush any buffered content.
+    Sent from TTC to one of the agents when the controller decides to interrupt
+    an agent mid-turn (e.g., when the human starts speaking).
     """
 
-    type: Literal["agent_end"]
+    type: Literal["turn_cancelled"]
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls) -> "AgentEndEvent":
-        """Factory method to create an AgentEndEvent event with current timestamp."""
-        return cls(type="agent_end", ts=_now_ms())
+    def create(
+        cls, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    ) -> "TurnCancelledEvent":
+        """Factory method to create a TurnCancelledEvent with current timestamp."""
+        return cls(type="turn_cancelled", role=role, ts=now_ms())
+
+
+# AGENT EVENTS (server -> client)
 
 
 @dataclass
-class ToolCallEvent:
+class AgentAudioChunkEvent:
     """
-    Event emitted when the agent invokes a tool.
+    Event emitted when an agent is speaking.
 
-    This event provides visibility into the agent's decision-making process,
-    showing which tools are being called and with what arguments.
-    """
-
-    type: Literal["tool_call"]
-
-    id: str
-    """Unique identifier for this tool invocation."""
-
-    name: str
-    """Name of the tool being invoked."""
-
-    args: dict
-    """Arguments passed to the tool."""
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(cls, id: str, name: str, args: dict) -> "ToolCallEvent":
-        """Factory method to create a ToolCallEvent event with current timestamp."""
-        return cls(type="tool_call", id=id, name=name, args=args, ts=_now_ms())
-
-
-@dataclass
-class ToolResultEvent:
-    """
-    Event emitted when a tool completes execution and returns a result.
-
-    This event contains the output from the tool, allowing tracking of
-    the full tool execution lifecycle.
+    Sent from server to client. Contains audio data that the client
+    should play through the speakers so the user can hear the agent.
+    The audio is streamed in chunks for low-latency playback.
     """
 
-    type: Literal["tool_result"]
-
-    tool_call_id: str
-    """The tool call ID this result corresponds to."""
-
-    name: str
-    """Name of the tool that was executed."""
-
-    result: str
-    """The result returned by the tool."""
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(cls, tool_call_id: str, name: str, result: str) -> "ToolResultEvent":
-        """Factory method to create a ToolResultEvent event with current timestamp."""
-        return cls(
-            type="tool_result",
-            tool_call_id=tool_call_id,
-            name=name,
-            result=result,
-            ts=_now_ms(),
-        )
-
-
-AgentEvent = Union[AgentChunkEvent, AgentEndEvent, ToolCallEvent, ToolResultEvent]
-"""
-Union type of all agent-related events.
-
-This type encompasses all events emitted during agent processing, including
-streaming text chunks, tool invocations, and completion signals. It enables
-type-safe handling of the various stages of agent response generation.
-"""
-
-
-@dataclass
-class TTSChunkEvent:
-    """
-    Event emitted during text-to-speech synthesis for streaming audio chunks.
-
-    As the TTS service synthesizes speech, it streams audio incrementally.
-    These chunks enable real-time playback of the agent's response, allowing
-    audio to begin playing before the complete synthesis is finished, which
-    significantly improves perceived responsiveness.
-    """
-
-    type: Literal["tts_chunk"]
+    type: Literal["agent_audio_chunk"]
 
     audio: bytes
     """
-    PCM audio bytes synthesized from the agent's text response.
-    Format: 16-bit signed integer, mono channel, 24kHz sample rate.
-    Encoded as base64 when serialized to JSON for transmission.
-    Can be played immediately as it arrives for low-latency audio output.
+    Raw PCM audio bytes from the agent's TTS output.
+    Format: float32, mono channel, 24kHz sample rate.
+    Encoded as base64 when serialized to JSON.
+    """
+
+    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    """
+    Role of the agent who is speaking.
     """
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, audio: bytes) -> "TTSChunkEvent":
-        """Factory method to create a TTSChunkEvent event with current timestamp."""
-        return cls(type="tts_chunk", audio=audio, ts=_now_ms())
+    def create(
+        cls, audio: bytes, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    ) -> "AgentAudioChunkEvent":
+        """Factory method to create an AgentAudioChunkEvent with current timestamp."""
+        return cls(type="agent_audio_chunk", audio=audio, role=role, ts=now_ms())
 
 
-VoiceAgentEvent = Union[UserInputEvent, STTEvent, AgentEvent, TTSChunkEvent]
+@dataclass
+class AgentTextEvent:
+    """
+    Event emitted when an agent has finished speaking.
+
+    Sent from server to client. Contains the full transcription of what
+    the agent said. This event triggers the turn-taking controller to
+    decide who should speak next.
+    """
+
+    type: Literal["agent_text"]
+
+    text: str
+    """
+    Complete transcription of the agent's speech.
+    """
+
+    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    """
+    Role of the agent who was speaking.
+    """
+
+    ts: int
+    """Unix timestamp (milliseconds since epoch) when the event was created."""
+
+    @classmethod
+    def create(
+        cls, text: str, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    ) -> "AgentTextEvent":
+        """Factory method to create an AgentTextEvent with current timestamp."""
+        return cls(type="agent_text", text=text, role=role, ts=now_ms())
 
 
-def event_to_dict(event: VoiceAgentEvent) -> dict:
-    """Convert a VoiceAgentEvent to a JSON-serializable dictionary."""
-    if isinstance(event, UserInputEvent):
-        return {"type": event.type, "ts": event.ts}
-    elif isinstance(event, STTChunkEvent):
-        return {"type": event.type, "transcript": event.transcript, "ts": event.ts}
-    elif isinstance(event, STTOutputEvent):
-        return {"type": event.type, "transcript": event.transcript, "ts": event.ts}
-    elif isinstance(event, AgentChunkEvent):
-        return {"type": event.type, "text": event.text, "ts": event.ts}
-    elif isinstance(event, AgentEndEvent):
-        return {"type": event.type, "ts": event.ts}
-    elif isinstance(event, ToolCallEvent):
+# Union types for type-safe event handling
+
+ClientEvent = TurnDecisionEvent | TurnCancelledEvent
+"""Events sent from the turn-taking controller (client) to the server."""
+
+ServerEvent = AgentAudioChunkEvent | AgentTextEvent
+"""Events sent from the server to the turn-taking controller (client)."""
+
+
+def event_to_dict(event: ClientEvent | ServerEvent) -> dict:
+    """Convert an event to a JSON-serializable dictionary."""
+    if isinstance(event, TurnDecisionEvent):
         return {
             "type": event.type,
-            "id": event.id,
-            "name": event.name,
-            "args": event.args,
+            "role": event.role.value,
+            "text": event.text,
             "ts": event.ts,
         }
-    elif isinstance(event, ToolResultEvent):
+    elif isinstance(event, TurnCancelledEvent):
         return {
             "type": event.type,
-            "toolCallId": event.tool_call_id,
-            "name": event.name,
-            "result": event.result,
             "ts": event.ts,
         }
-    elif isinstance(event, TTSChunkEvent):
+    elif isinstance(event, AgentAudioChunkEvent):
         return {
             "type": event.type,
             "audio": base64.b64encode(event.audio).decode("ascii"),
+            "role": event.role.value,
+            "ts": event.ts,
+        }
+    elif isinstance(event, AgentTextEvent):
+        return {
+            "type": event.type,
+            "text": event.text,
+            "role": event.role.value,
             "ts": event.ts,
         }
     else:

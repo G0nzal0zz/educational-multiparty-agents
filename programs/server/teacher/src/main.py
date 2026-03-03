@@ -5,12 +5,12 @@ from typing import Literal
 import numpy as np
 from langchain_core.runnables import RunnableGenerator
 
-from src.lib.chatterbox_tts import ChatterboxTTS
-from src.lib.events import AgentChunkEvent, AgentEndEvent, VoiceAgentEvent
-from src.lib.ollama_llm import OllamaLLM
-from src.lib.prompts import TEACHER_PROMPT
-from src.lib.utils import ClientHandler
-from src.lib.whisper_stt import WhisperSTT
+from src.chatterbox_tts import ChatterboxTTS
+from src.events import AgentChunkEvent, AgentEndEvent, VoiceAgentEvent
+from src.ollama_llm import OllamaLLM
+from src.prompts import TEACHER_PROMPT
+from src.utils import ClientHandler
+from src.whisper_stt import WhisperSTT
 
 role: Literal["TEACHER", "STUDENT"] = "TEACHER"
 state: Literal["TEACHING", "LISTENING"] = "TEACHING"

@@ -4,10 +4,11 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 
 import numpy as np
-import shared_lib.events
 import speech_recognition as sr
 import torch
 import whisper
+
+from events import STTEvent
 
 
 class WhisperSTT:
@@ -39,10 +40,15 @@ class WhisperSTT:
             model = model + ".en"
         self.audio_model = whisper.load_model(model)
 
-    async def STT(self) -> AsyncIterator[shared_lib.events.STTEvent]:
+    async def STT(self) -> AsyncIterator[STTEvent]:
+        """
+        Transcribe audio from the local microphone.
+
+        Yields transcribed text whenever the user finishes speaking
+        a phrase (determined by silence timeout).
+        """
         phrase_time = None
         phrase_bytes = bytes()
-        transcription = [""]
 
         data_queue = asyncio.Queue()
 
@@ -86,13 +92,10 @@ class WhisperSTT:
                     fp16=torch.cuda.is_available(),
                 )
 
-                text = result["text"].strip()
+                text = str(result["text"]).strip()
 
-                if phrase_complete and isinstance(text, str):
-                    transcription.append(text)
-                    yield shared_lib.events.STTChunkEvent.create(text)
-                else:
-                    transcription[-1] = text
+                if phrase_complete and text:
+                    yield STTEvent.create(text)
 
             except asyncio.CancelledError:
                 break
