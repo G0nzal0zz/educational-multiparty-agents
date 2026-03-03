@@ -2,28 +2,39 @@ import argparse
 import asyncio
 import json
 import socket
+from collections.abc import AsyncIterator
 from sys import platform
 
 import numpy as np
+import shared_lib.events
 import sounddevice as sd
 import speech_recognition as sr
-from shared_lib.events import event_to_dict
+from shared_lib.events import TurnTakingEvent, event_to_dict
 
+from llama_agent import LlamaAgent
 from whisper_stt import WhisperSTT
 
 HOST = "127.0.0.1"
 PORT = 9000
 
 
-async def send_audio(sock: socket.socket, whisper: WhisperSTT):
-    whisper.audio_model
+async def stream_turn_events_to_server(sock: socket.socket, whisper: WhisperSTT, llama: LlamaAgent):
+    async def generate_turn_events(
+        whisper: WhisperSTT, llama: LlamaAgent
+    ) -> AsyncIterator[TurnTakingEvent]:
+
+        stt_events = whisper.STT()
+
+        async for event in llama.process_turn(stt_events):
+            yield event
+
     loop = asyncio.get_running_loop()
-    async for data in whisper.STT():
+    async for data in generate_turn_events(whisper, llama):
         json_data = json.dumps(event_to_dict(data))
         await loop.sock_sendall(sock, json_data.encode())
 
 
-async def receive_and_play(sock: socket.socket):
+async def receive_server_data(sock: socket.socket):
     loop = asyncio.get_running_loop()
 
     # Match the server audio: float32, mono
@@ -46,23 +57,21 @@ async def receive_and_play(sock: socket.socket):
         stream.stop()
         stream.close()
 
-
-async def start(whisper: WhisperSTT):
+async def start(whisper: WhisperSTT, llama: LlamaAgent):
     loop = asyncio.get_running_loop()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setblocking(False)
     await loop.sock_connect(sock, (HOST, PORT))
 
-    send_task = asyncio.create_task(send_audio(sock, whisper))
-    recv_task = asyncio.create_task(receive_and_play(sock))
+    send_task = asyncio.create_task(stream_turn_events_to_server(sock, whisper, llama))
+    recv_task = asyncio.create_task(receive_server_data(sock))
 
     try:
         _ = await asyncio.gather(send_task, recv_task)
     finally:
         _ = send_task.cancel()
         _ = recv_task.cancel()
-
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -123,6 +132,7 @@ async def main():
                     break
 
     whisper = WhisperSTT(args, source)
+    llama = LlamaAgent()
 
     await start(whisper)
 

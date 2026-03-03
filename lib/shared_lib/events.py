@@ -31,28 +31,29 @@ class Role(Enum):
 # TODO: Register the role in each event
 
 
-@dataclass
-class UserInputEvent:
-    """
-    Event emitted when audio from the user is transcribed.
-    """
-
-    type: Literal["user_input"]
-
-    transcript: str
-    """
-    User audio transcription.
-    """
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(cls, transcript: str) -> "UserInputEvent":
-        """Factory method to create a UserInputEvent event with current timestamp."""
-        return cls(type="user_input", transcript=transcript, ts=_now_ms())
-
-
+#
+# @dataclass
+# class UserInputEvent:
+#     """
+#     Event emitted when audio from the user is transcribed.
+#     """
+#
+# type: Literal["user_input"]
+#
+#     transcript: str
+#     """
+#     User audio transcription.
+#     """
+#
+#     ts: int
+#     """Unix timestamp (milliseconds since epoch) when the event was created."""
+#
+#     @classmethod
+#     def create(cls, transcript: str) -> "UserInputEvent":
+#         """Factory method to create a UserInputEvent event with current timestamp."""
+#         return cls(type="user_input", transcript=transcript, ts=_now_ms())
+#
+#
 @dataclass
 class STTChunkEvent:
     """
@@ -107,6 +108,8 @@ class STTOutputEvent:
 
 
 STTEvent = Union[STTChunkEvent, STTOutputEvent]
+
+TurnTakingEvent = Union[STTChunkEvent, STTOutputEvent]
 
 
 @dataclass

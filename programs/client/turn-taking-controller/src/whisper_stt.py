@@ -1,10 +1,7 @@
 import argparse
 import asyncio
-import os
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
-from queue import Queue
-from sys import platform
-from time import sleep
 
 import numpy as np
 import shared_lib.events
@@ -14,7 +11,7 @@ import whisper
 
 
 class WhisperSTT:
-    recorder: sr.Recognizer 
+    recorder: sr.Recognizer
 
     source: sr.Microphone
 
@@ -42,7 +39,7 @@ class WhisperSTT:
             model = model + ".en"
         self.audio_model = whisper.load_model(model)
 
-    async def STT(self):
+    async def STT(self) -> AsyncIterator[shared_lib.events.STTEvent]:
         phrase_time = None
         phrase_bytes = bytes()
         transcription = [""]
@@ -79,8 +76,8 @@ class WhisperSTT:
                 phrase_bytes += data
 
                 audio_np = (
-                    np.frombuffer(phrase_bytes, dtype=np.int16)
-                    .astype(np.float32) / 32768.0
+                    np.frombuffer(phrase_bytes, dtype=np.int16).astype(np.float32)
+                    / 32768.0
                 )
 
                 result = await asyncio.to_thread(
@@ -93,7 +90,7 @@ class WhisperSTT:
 
                 if phrase_complete and isinstance(text, str):
                     transcription.append(text)
-                    yield shared_lib.events.UserInputEvent.create(text)
+                    yield shared_lib.events.STTChunkEvent.create(text)
                 else:
                     transcription[-1] = text
 

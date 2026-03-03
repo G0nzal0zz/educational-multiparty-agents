@@ -21,7 +21,7 @@ MAX_SAMPLES = SAMPLE_RATE * MAX_SECONDS
 
 
 async def _whisper_stt_stream(
-    audio_stream: AsyncIterator[bytes],
+    audio_stream: AsyncIterator[VoiceAgentEvent],
 ) -> AsyncIterator[VoiceAgentEvent]:
     """
     Continuously collect raw PCM audio and transcribe with Whisper.
