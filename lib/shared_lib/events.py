@@ -28,11 +28,8 @@ class Role(Enum):
     HUMAN_STUDENT = 3
 
 
-# TURN TAKING CONTROLLER EVENTS (client -> server)
-
-
 @dataclass
-class TurnDecisionEvent:
+class SocketTurnDecisionEvent:
     """
     Event emitted when the Turn Taking Controller has taken a decision
     about who should speak next.
@@ -63,13 +60,13 @@ class TurnDecisionEvent:
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, text: str, role: Role) -> "TurnDecisionEvent":
+    def create(cls, text: str, role: Role) -> "SocketTurnDecisionEvent":
         """Factory method to create a TurnDecisionEvent with current timestamp."""
         return cls(type="turn_decision", text=text, role=role, ts=now_ms())
 
 
 @dataclass
-class TurnCancelledEvent:
+class SocketTurnCancelledEvent:
     """
     Event emitted when the TTC cancels the turn of an agent.
     Human student's turn cannot be cancelled.
@@ -80,22 +77,24 @@ class TurnCancelledEvent:
 
     type: Literal["turn_cancelled"]
 
+    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    """
+    Role of the agent whose turn has been cancelled.
+    """
+
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
     def create(
         cls, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "TurnCancelledEvent":
+    ) -> "SocketTurnCancelledEvent":
         """Factory method to create a TurnCancelledEvent with current timestamp."""
         return cls(type="turn_cancelled", role=role, ts=now_ms())
 
 
-# AGENT EVENTS (server -> client)
-
-
 @dataclass
-class AgentAudioChunkEvent:
+class SocketAgentAudioChunkEvent:
     """
     Event emitted when an agent is speaking.
 
@@ -124,13 +123,13 @@ class AgentAudioChunkEvent:
     @classmethod
     def create(
         cls, audio: bytes, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "AgentAudioChunkEvent":
+    ) -> "SocketAgentAudioChunkEvent":
         """Factory method to create an AgentAudioChunkEvent with current timestamp."""
         return cls(type="agent_audio_chunk", audio=audio, role=role, ts=now_ms())
 
 
 @dataclass
-class AgentTextEvent:
+class SocketAgentTextEvent:
     """
     Event emitted when an agent has finished speaking.
 
@@ -157,42 +156,43 @@ class AgentTextEvent:
     @classmethod
     def create(
         cls, text: str, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "AgentTextEvent":
+    ) -> "SocketAgentTextEvent":
         """Factory method to create an AgentTextEvent with current timestamp."""
         return cls(type="agent_text", text=text, role=role, ts=now_ms())
 
 
 # Union types for type-safe event handling
 
-ClientEvent = TurnDecisionEvent | TurnCancelledEvent
+SocketClientEvent = SocketTurnDecisionEvent | SocketTurnCancelledEvent
 """Events sent from the turn-taking controller (client) to the server."""
 
-ServerEvent = AgentAudioChunkEvent | AgentTextEvent
+SocketServerEvent = SocketAgentAudioChunkEvent | SocketAgentTextEvent
 """Events sent from the server to the turn-taking controller (client)."""
 
 
-def event_to_dict(event: ClientEvent | ServerEvent) -> dict:
+def event_to_dict(event: SocketClientEvent | SocketServerEvent) -> dict:
     """Convert an event to a JSON-serializable dictionary."""
-    if isinstance(event, TurnDecisionEvent):
+    if isinstance(event, SocketTurnDecisionEvent):
         return {
             "type": event.type,
             "role": event.role.value,
             "text": event.text,
             "ts": event.ts,
         }
-    elif isinstance(event, TurnCancelledEvent):
+    elif isinstance(event, SocketTurnCancelledEvent):
         return {
             "type": event.type,
+            "role": event.role.value,
             "ts": event.ts,
         }
-    elif isinstance(event, AgentAudioChunkEvent):
+    elif isinstance(event, SocketAgentAudioChunkEvent):
         return {
             "type": event.type,
             "audio": base64.b64encode(event.audio).decode("ascii"),
             "role": event.role.value,
             "ts": event.ts,
         }
-    elif isinstance(event, AgentTextEvent):
+    elif isinstance(event, SocketAgentTextEvent):
         return {
             "type": event.type,
             "text": event.text,
@@ -201,3 +201,95 @@ def event_to_dict(event: ClientEvent | ServerEvent) -> dict:
         }
     else:
         raise ValueError(f"Unknown event type: {type(event)}")
+
+
+def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
+    """
+    Convert a dictionary to the appropriate event type.
+
+    Args:
+        data: Dictionary containing event data (typically from JSON parsing)
+
+    Returns:
+        The appropriate event object based on the "type" field
+
+    Raises:
+        ValueError: If the event type is unknown or required fields are missing
+    """
+    event_type = data.get("type")
+
+    if event_type == "turn_decision":
+        role_value = data.get("role", Role.HUMAN_STUDENT.value)
+        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
+        return SocketTurnDecisionEvent(
+            type="turn_decision",
+            text=data.get("text", ""),
+            role=role,
+            ts=data.get("ts", now_ms()),
+        )
+
+    elif event_type == "turn_cancelled":
+        role_value = data.get("role", Role.TEACHER.value)
+        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
+        return SocketTurnCancelledEvent(
+            type="turn_cancelled",
+            role=role,
+            ts=data.get("ts", now_ms()),
+        )
+
+    elif event_type == "agent_audio_chunk":
+        audio_str = data.get("audio", "")
+        audio_bytes = base64.b64decode(audio_str) if audio_str else b""
+        role_value = data.get("role", Role.TEACHER.value)
+        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
+        return SocketAgentAudioChunkEvent(
+            type="agent_audio_chunk",
+            audio=audio_bytes,
+            role=role,
+            ts=data.get("ts", now_ms()),
+        )
+
+    elif event_type == "agent_text":
+        role_value = data.get("role", Role.TEACHER.value)
+        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
+        return SocketAgentTextEvent(
+            type="agent_text",
+            text=data.get("text", ""),
+            role=role,
+            ts=data.get("ts", now_ms()),
+        )
+
+    else:
+        raise ValueError(f"Unknown event type: {event_type}")
+
+
+def bytes_to_event(data: bytes | str) -> SocketClientEvent | SocketServerEvent:
+    """
+    Convert bytes or string containing JSON to the appropriate event type.
+
+    This is a convenience wrapper around dict_to_event that handles
+    JSON parsing.
+
+    Args:
+        data: Bytes or string containing JSON event data
+
+    Returns:
+        The appropriate event object based on the "type" field
+
+    Raises:
+        ValueError: If the JSON is invalid or event type is unknown
+        json.JSONDecodeError: If the input is not valid JSON
+    """
+    import json
+
+    if isinstance(data, bytes):
+        data = data.decode("utf-8")
+
+    # Handle newline-delimited JSON (multiple JSON objects separated by newlines)
+    data = data.strip()
+    if "\n" in data:
+        # Take the first complete JSON object
+        data = data.split("\n")[0]
+
+    parsed = json.loads(data)
+    return dict_to_event(parsed)

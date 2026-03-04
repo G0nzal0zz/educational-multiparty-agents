@@ -22,21 +22,9 @@ class STTEvent:
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, text: str) -> "STTEvent":
+    def create(cls, transcript: str) -> "STTEvent":
         """Factory method to create an AgentTextEvent with current timestamp."""
-        return cls(type="stt", text=text, ts=now_ms())
+        return cls(type="stt", transcript=transcript, ts=now_ms())
 
 
 TTCEvent = STTEvent
-
-
-def event_to_dict(event: TTCEvent) -> dict:
-    """Convert an event to a JSON-serializable dictionary."""
-    if isinstance(event, STTEvent):
-        return {
-            "type": event.type,
-            "text": event.transcript,
-            "ts": event.ts,
-        }
-    else:
-        raise ValueError(f"Unknown event type: {type(event)}")

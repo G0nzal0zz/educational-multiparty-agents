@@ -1,51 +1,57 @@
 import asyncio
 from collections.abc import AsyncIterator
-from typing import Literal
 
 from langchain_core.runnables import RunnableGenerator
 from server_lib.chatterbox_tts import ChatterboxTTS
-from server_lib.events import AgentChunkEvent, AgentEndEvent, VoiceAgentEvent
-from server_lib.handler import ClientHandler
-from server_lib.ollama_llm import OllamaLLM
-from server_lib.prompts import TEACHER_PROMPT
+from server_lib.events import AgentChunkEvent, AgentEndEvent
+from server_lib.handler import ClientHandler, ServerEvent
+from server_lib.ollama_llm import OLlamaLLM
+from server_lib.prompts import TTS_SYSTEM_PROMPT
+from shared_lib.events import Role, SocketClientEvent, SocketTurnCancelledEvent
 
-role: Literal["TEACHER", "STUDENT"] = "TEACHER"
-state: Literal["TEACHING", "LISTENING"] = "TEACHING"
+system_prompt = f"""
+You are a helpful teacher. Your goal is to teach about a topic to some students.
+Be concise and friendly.
+
+Available topics: history, science, sports and culture.
+
+{TTS_SYSTEM_PROMPT}
+"""
+
+agent = OLlamaLLM(system_prompt)
 
 
 async def _ollama_agent_stream(
-    event_stream: AsyncIterator[bytes],
-) -> AsyncIterator[VoiceAgentEvent]:
-    ollamaLLM = OllamaLLM()
-
-    # if role == "TEACHER" and state == "TEACHING":
-    #     _ = ollamaLLM.generate_response(TEACHER_PROMPT)
-    #     role = "STUDENT"
-    #     state = "LISTENING"
+    event_stream: AsyncIterator[SocketClientEvent],
+) -> AsyncIterator[ServerEvent]:
 
     async for event in event_stream:
-        # Pass through all events to downstream consumers
-        yield event
+        if isinstance(event, SocketTurnCancelledEvent):
+            # TODO: Handle cancelled turn
+            continue
 
-        # When we receive a final transcript, invoke the agent
-        if event.type == "stt_output":
-            _ = ollamaLLM.generate_response(event.transcript)
+        if event.role != Role.TEACHER:
+            print("ERROR: Received turn event, but role isn't TEACHER")
+            continue
+
+        response = agent.generate_response(event.text)
+        async for chunk in response:
+            yield chunk
 
 
 async def _chatterbox_tts_stream(
-    event_stream: AsyncIterator[VoiceAgentEvent],
-) -> AsyncIterator[VoiceAgentEvent]:
+    event_stream: AsyncIterator[ServerEvent],
+) -> AsyncIterator[ServerEvent]:
     tts = ChatterboxTTS()
 
     buffer: list[str] = []
     async for event in event_stream:
-        # Pass through all events to downstream consumers
         yield event
-        # Buffer agent text chunks
-        if event.type == "agent_chunk":
+
+        if isinstance(event, AgentChunkEvent):
             buffer.append(event.text)
-        # Send all buffered text to Chatterbox TTS finishes
-        if event.type == "agent_end":
+
+        if isinstance(event, AgentEndEvent):
             print(" ".join(buffer))
             ttsEvent = await tts.generate(" ".join(buffer))
             yield ttsEvent

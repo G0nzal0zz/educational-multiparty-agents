@@ -3,7 +3,9 @@ name = "teacher"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "peft>=0.18.1",
     "server-lib>=0.1.0",
+    "setuptools==80.9.0",
     "shared-lib>=0.1.0",
 ]
 

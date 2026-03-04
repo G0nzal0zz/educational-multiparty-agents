@@ -24,17 +24,15 @@ import numpy as np
 import sounddevice as sd
 import speech_recognition as sr
 from shared_lib.events import (
-    AgentAudioChunkEvent,
-    AgentTextEvent,
-    ClientEvent,
     Role,
-    ServerEvent,
-    TurnDecisionEvent,
+    SocketAgentTextEvent,
+    SocketClientEvent,
+    SocketTurnDecisionEvent,
     event_to_dict,
 )
 
 from events import STTEvent
-from llama_agent import LlamaAgent
+from ollama_llm import OllamaLLM
 from whisper_stt import WhisperSTT
 
 HOST = "127.0.0.1"
@@ -43,7 +41,7 @@ PORT = 9000
 
 async def receive_server_events(
     sock: socket.socket,
-) -> AsyncIterator[ServerEvent]:
+) -> AsyncIterator[SocketAgentTextEvent]:
     """
     Receive events from the server (agents).
 
@@ -82,13 +80,13 @@ async def receive_server_events(
                             stream.write(audio_np)
                             role_value = event_dict.get("role", Role.TEACHER.value)
                             role = Role(role_value)
-                            yield AgentAudioChunkEvent.create(audio_bytes, role)
+                            # yield AgentAudioChunkEvent.create(audio_bytes, role)
 
                     elif event_type == "agent_text":
                         text = event_dict.get("text", "")
                         role_value = event_dict.get("role", Role.TEACHER.value)
                         role = Role(role_value)
-                        yield AgentTextEvent.create(text, role)
+                        yield SocketAgentTextEvent.create(text, role)
 
                 except json.JSONDecodeError:
                     continue
@@ -101,14 +99,14 @@ async def receive_server_events(
         stream.close()
 
 
-async def send_event_to_server(sock: socket.socket, event: ClientEvent):
+async def send_event_to_server(sock: socket.socket, event: SocketClientEvent):
     """Send an event from the client to the server over the socket."""
     loop = asyncio.get_running_loop()
     json_data = json.dumps(event_to_dict(event)) + "\n"
     await loop.sock_sendall(sock, json_data.encode())
 
 
-async def event_pipeline(whisper: WhisperSTT, llama: LlamaAgent, sock: socket.socket):
+async def event_pipeline(whisper: WhisperSTT, llama: OllamaLLM, sock: socket.socket):
     """
     Main event processing pipeline.
 
@@ -116,11 +114,11 @@ async def event_pipeline(whisper: WhisperSTT, llama: LlamaAgent, sock: socket.so
     - Local user speech (via Whisper STT)
     - Server events (agent audio and text)
 
-    When events arrive, processes them through the LlamaAgent to
+    When events arrive, processes them through the OllamaAgent to
     make turn-taking decisions, and sends decisions back to the server.
     """
     stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
-    server_queue: asyncio.Queue[ServerEvent] = asyncio.Queue()
+    server_queue: asyncio.Queue[SocketAgentTextEvent] = asyncio.Queue()
 
     async def user_listener():
         """Listen to local microphone and emit user speech events."""
@@ -151,11 +149,15 @@ async def event_pipeline(whisper: WhisperSTT, llama: LlamaAgent, sock: socket.so
 
                 decision = await llama.process_event(event)
 
-                if decision:
+                if decision == None:
+                    break
+
+                if isinstance(decision, SocketTurnDecisionEvent):
                     await send_event_to_server(sock, decision)
-                    print(
-                        f"Sent turn decision: {decision.role.name} - '{decision.text}'"
-                    )
+                    print(f"Sent turn decision: {decision.role.name}")
+
+                # if isintance(decision, TurnCancelledEvent):
+                #     TODO: Handle turn cancellation
 
             for task in pending:
                 task.cancel()
@@ -166,13 +168,14 @@ async def event_pipeline(whisper: WhisperSTT, llama: LlamaAgent, sock: socket.so
 
     try:
         await asyncio.gather(user_task, server_task, process_task)
+        await asyncio.gather(user_task, process_task)
     except asyncio.CancelledError:
         user_task.cancel()
         server_task.cancel()
         process_task.cancel()
 
 
-async def start(whisper: WhisperSTT, llama: LlamaAgent):
+async def start(whisper: WhisperSTT, llama: OllamaLLM):
     """Initialize socket connection and start the event pipeline."""
     loop = asyncio.get_running_loop()
 
@@ -238,9 +241,11 @@ async def main():
                 if mic_name in name:
                     source = sr.Microphone(sample_rate=16000, device_index=index)
                     break
+    else:
+        source = sr.Microphone(sample_rate=16000)
 
     whisper = WhisperSTT(args, source)
-    llama = LlamaAgent()
+    llama = OllamaLLM()
 
     await start(whisper, llama)
 

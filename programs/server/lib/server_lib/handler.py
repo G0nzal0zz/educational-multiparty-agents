@@ -1,30 +1,45 @@
 import asyncio
+import json
 
 from langchain_core.runnables import RunnableSerializable
+from shared_lib.events import (
+    SocketClientEvent,
+    SocketServerEvent,
+    bytes_to_event,
+    event_to_dict,
+)
 
-from server_lib.events import TTSChunkEvent
+from server_lib.events import ServerEvent, TTSChunkEvent
 
 
 class ClientHandler:
-    def __init__(self, pipeline: RunnableSerializable[bytes, VoiceAgentEvent]):
-        self.pipeline: RunnableSerializable[bytes, VoiceAgentEvent] = pipeline
+    def __init__(self, pipeline: RunnableSerializable[bytes, ServerEvent]):
+        self.pipeline: RunnableSerializable[bytes, ServerEvent] = pipeline
 
-    async def socket_audio_stream(self, reader: asyncio.StreamReader):
+    async def socket_stream(self, reader: asyncio.StreamReader):
         while True:
             data = await reader.read(4096)
             if not data:
                 break
-            yield data
+            event = bytes_to_event(data)
+            if isinstance(event, SocketServerEvent):
+                print("Received ServerEvent, skipping for now")
+                continue
+            yield event
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        output_stream = self.pipeline.atransform(self.socket_audio_stream(reader))
-        TTSChunkEvent
+        output_stream = self.pipeline.atransform(self.socket_stream(reader))
 
         try:
             async for event in output_stream:
-                if isinstance(event, TTSChunkEvent):
-                    writer.write(event.audio)
-                    await writer.drain()
+                if not isinstance(event, SocketServerEvent):
+                    print("ERROR: Tried to send an invalid event to the client")
+                    continue
+                dict = event_to_dict(event)
+                json_data = json.dumps(event_to_dict(event)) + "\n"
+
+                writer.write(json_data.encode())
+                await writer.drain()
 
         except asyncio.CancelledError:
             raise
