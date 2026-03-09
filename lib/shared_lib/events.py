@@ -1,15 +1,3 @@
-"""
-Voice Agent Event Types
-
-Python implementation of the voice agent event system.
-All events in the pipeline share common properties to enable
-consistent handling, logging, and debugging across the system.
-
-This module defines typed dataclasses for all events that flow through
-the voice agent pipeline, from user audio input through STT, agent
-processing, and TTS output.
-"""
-
 import base64
 import time
 from dataclasses import dataclass
@@ -29,57 +17,47 @@ class Role(Enum):
 
 
 @dataclass
-class SocketTurnDecisionEvent:
+class SocketHumanTranscription:
     """
-    Event emitted when the Turn Taking Controller has taken a decision
-    about who should speak next.
+    Event emitted when the TTC has finished transcribing the human's speech.
 
-    Sent from TTC to both agents after analyzing (one of the following):
-    - User speech transcription (local STT)
-    - Agent speech transcription (received from server)
+    Sent from client to server.
     """
 
-    type: Literal["turn_decision"]
-
-    role: Role
-    """
-    Role of the party who should take the turn.
-    """
-
-    # text_role: Role
-    # """
-    # Role of the party who that led to the decision.
-    # """
+    type: Literal["human_transcription"]
 
     text: str
     """
-    Text of the conversation that led to the decision.
+    Complete transcription of the humans's speech.
     """
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls, text: str, role: Role) -> "SocketTurnDecisionEvent":
-        """Factory method to create a TurnDecisionEvent with current timestamp."""
-        return cls(type="turn_decision", text=text, role=role, ts=now_ms())
+    def create(cls, text: str) -> "SocketHumanTranscription":
+        """Factory method to create an SocketHumanTranscription with current timestamp."""
+        return cls(type="human_transcription", text=text, ts=now_ms())
 
 
 @dataclass
-class SocketTurnCancelledEvent:
+class SocketAgentTextChunkEvent:
     """
-    Event emitted when the TTC cancels the turn of an agent.
-    Human student's turn cannot be cancelled.
+    Event emitted when an agent has generated a chunk of text.
 
-    Sent from TTC to one of the agents when the controller decides to interrupt
-    an agent mid-turn (e.g., when the human starts speaking).
+    Sent from server to client.
     """
 
-    type: Literal["turn_cancelled"]
+    type: Literal["agent_text_chunk"]
 
     role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
     """
-    Role of the agent whose turn has been cancelled.
+    Role of the agent who was speaking.
+    """
+
+    text: str
+    """
+    Agent's intervention.
     """
 
     ts: int
@@ -87,63 +65,24 @@ class SocketTurnCancelledEvent:
 
     @classmethod
     def create(
-        cls, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "SocketTurnCancelledEvent":
-        """Factory method to create a TurnCancelledEvent with current timestamp."""
-        return cls(type="turn_cancelled", role=role, ts=now_ms())
+        cls, text: str, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    ) -> "SocketAgentTextChunkEvent":
+        """Factory method to create an SocketAgentTextChunkEvent with current timestamp."""
+        return cls(type="agent_text_chunk", text=text, role=role, ts=now_ms())
 
 
 @dataclass
-class SocketAgentAudioChunkEvent:
+class SocketAgentTextEndEvent:
     """
-    Event emitted when an agent is speaking.
+    Event emitted when an agent has finished generating text.
 
-    Sent from server to client. Contains audio data that the client
-    should play through the speakers so the user can hear the agent.
-    The audio is streamed in chunks for low-latency playback.
-    """
+    This event implies that the agent has finished sending events of type agent_chunk_event and the TTC
+    shouldn't be waiting for more.
 
-    type: Literal["agent_audio_chunk"]
-
-    audio: bytes
-    """
-    Raw PCM audio bytes from the agent's TTS output.
-    Format: float32, mono channel, 24kHz sample rate.
-    Encoded as base64 when serialized to JSON.
+    Sent from server to client.
     """
 
-    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    """
-    Role of the agent who is speaking.
-    """
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(
-        cls, audio: bytes, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "SocketAgentAudioChunkEvent":
-        """Factory method to create an AgentAudioChunkEvent with current timestamp."""
-        return cls(type="agent_audio_chunk", audio=audio, role=role, ts=now_ms())
-
-
-@dataclass
-class SocketAgentTextEvent:
-    """
-    Event emitted when an agent has finished speaking.
-
-    Sent from server to client. Contains the full transcription of what
-    the agent said. This event triggers the turn-taking controller to
-    decide who should speak next.
-    """
-
-    type: Literal["agent_text"]
-
-    text: str
-    """
-    Complete transcription of the agent's speech.
-    """
+    type: Literal["agent_text_end"]
 
     role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
     """
@@ -155,47 +94,39 @@ class SocketAgentTextEvent:
 
     @classmethod
     def create(
-        cls, text: str, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
-    ) -> "SocketAgentTextEvent":
-        """Factory method to create an AgentTextEvent with current timestamp."""
-        return cls(type="agent_text", text=text, role=role, ts=now_ms())
+        cls, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    ) -> "SocketAgentTextEndEvent":
+        """Factory method to create an SocketAgentTextEndEvent with current timestamp."""
+        return cls(type="agent_text_end", role=role, ts=now_ms())
 
 
 # Union types for type-safe event handling
 
-SocketClientEvent = SocketTurnDecisionEvent | SocketTurnCancelledEvent
+SocketClientEvent = SocketHumanTranscription
 """Events sent from the turn-taking controller (client) to the server."""
 
-SocketServerEvent = SocketAgentAudioChunkEvent | SocketAgentTextEvent
+SocketServerEvent = SocketAgentTextChunkEvent | SocketAgentTextEndEvent
 """Events sent from the server to the turn-taking controller (client)."""
 
 
 def event_to_dict(event: SocketClientEvent | SocketServerEvent) -> dict:
     """Convert an event to a JSON-serializable dictionary."""
-    if isinstance(event, SocketTurnDecisionEvent):
+    if isinstance(event, SocketHumanTranscription):
+        return {
+            "type": event.type,
+            "text": event.text,
+            "ts": event.ts,
+        }
+    elif isinstance(event, SocketAgentTextChunkEvent):
         return {
             "type": event.type,
             "role": event.role.value,
             "text": event.text,
             "ts": event.ts,
         }
-    elif isinstance(event, SocketTurnCancelledEvent):
+    elif isinstance(event, SocketAgentTextEndEvent):
         return {
             "type": event.type,
-            "role": event.role.value,
-            "ts": event.ts,
-        }
-    elif isinstance(event, SocketAgentAudioChunkEvent):
-        return {
-            "type": event.type,
-            "audio": base64.b64encode(event.audio).decode("ascii"),
-            "role": event.role.value,
-            "ts": event.ts,
-        }
-    elif isinstance(event, SocketAgentTextEvent):
-        return {
-            "type": event.type,
-            "text": event.text,
             "role": event.role.value,
             "ts": event.ts,
         }
@@ -218,43 +149,26 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
     """
     event_type = data.get("type")
 
-    if event_type == "turn_decision":
-        role_value = data.get("role", Role.HUMAN_STUDENT.value)
+    if event_type == "human_transcription":
+        return SocketHumanTranscription(
+            type=event_type, text=data.get("text", ""), ts=data.get("ts", now_ms())
+        )
+
+    elif event_type == "agent_text_chunk":
+        role_value = data.get("role", Role.TEACHER.value)
         role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
-        return SocketTurnDecisionEvent(
-            type="turn_decision",
+        return SocketAgentTextChunkEvent(
+            type=event_type,
             text=data.get("text", ""),
             role=role,
             ts=data.get("ts", now_ms()),
         )
 
-    elif event_type == "turn_cancelled":
+    elif event_type == "agent_text_end":
         role_value = data.get("role", Role.TEACHER.value)
         role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
-        return SocketTurnCancelledEvent(
-            type="turn_cancelled",
-            role=role,
-            ts=data.get("ts", now_ms()),
-        )
-
-    elif event_type == "agent_audio_chunk":
-        audio_str = data.get("audio", "")
-        audio_bytes = base64.b64decode(audio_str) if audio_str else b""
-        role_value = data.get("role", Role.TEACHER.value)
-        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
-        return SocketAgentAudioChunkEvent(
-            type="agent_audio_chunk",
-            audio=audio_bytes,
-            role=role,
-            ts=data.get("ts", now_ms()),
-        )
-
-    elif event_type == "agent_text":
-        role_value = data.get("role", Role.TEACHER.value)
-        role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
-        return SocketAgentTextEvent(
-            type="agent_text",
-            text=data.get("text", ""),
+        return SocketAgentTextEndEvent(
+            type=event_type,
             role=role,
             ts=data.get("ts", now_ms()),
         )
