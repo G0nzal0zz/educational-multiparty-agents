@@ -4,10 +4,12 @@ import json
 from langchain_core.runnables import RunnableSerializable
 from shared_lib.events import (
     SocketClientEvent,
+    SocketEvent,
     SocketServerEvent,
     bytes_to_event,
     event_to_dict,
 )
+from shared_lib.utils import stream_reader_to_event
 
 from server_lib.events import ServerEvent, TTSChunkEvent
 
@@ -16,19 +18,15 @@ class ClientHandler:
     def __init__(self, pipeline: RunnableSerializable[bytes, ServerEvent]):
         self.pipeline: RunnableSerializable[bytes, ServerEvent] = pipeline
 
-    async def socket_stream(self, reader: asyncio.StreamReader):
-        while True:
-            data = await reader.read(4096)
-            if not data:
-                break
-            event = bytes_to_event(data)
+    async def socket_reader_to_event(self, reader: asyncio.StreamReader):
+        async for event in stream_reader_to_event(reader):
             if isinstance(event, SocketServerEvent):
-                print("Received ServerEvent, skipping for now")
+                print("Received a SockerServerEvent in a server, skipping for now.")
                 continue
             yield event
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        output_stream = self.pipeline.atransform(self.socket_stream(reader))
+        output_stream = self.pipeline.atransform(self.stream_reader_to_event(reader))
 
         try:
             async for event in output_stream:

@@ -8,7 +8,7 @@ import speech_recognition as sr
 import torch
 import whisper
 
-from events import STTEvent
+from events import STTChunkEvent, STTEndEvent, STTEvent
 
 
 class WhisperSTT:
@@ -18,7 +18,7 @@ class WhisperSTT:
 
     record_timeout: int
 
-    phrase_timeout: int
+    intervention_timeout: int
 
     audio_model: whisper.Whisper
 
@@ -33,7 +33,7 @@ class WhisperSTT:
         self.source = source
 
         self.record_timeout = args.record_timeout
-        self.phrase_timeout = args.phrase_timeout
+        self.intervention_timeout = args.intervention_timeout
 
         # Load / Download mode
         model = args.model
@@ -46,10 +46,10 @@ class WhisperSTT:
         Transcribe audio from the local microphone.
 
         Yields transcribed text whenever the user finishes speaking
-        a phrase (determined by silence timeout).
+        a intervention (determined by silence timeout).
         """
-        phrase_time = None
-        phrase_bytes = bytes()
+        intervention_time = None
+        intervention_bytes = bytes()
 
         data_queue = asyncio.Queue()
 
@@ -65,7 +65,7 @@ class WhisperSTT:
         self.recorder.listen_in_background(
             self.source,
             record_callback,
-            phrase_time_limit=self.record_timeout,
+            intervention_time_limit=self.record_timeout,
         )
 
         transcription = [""]
@@ -75,19 +75,19 @@ class WhisperSTT:
             try:
                 data = await data_queue.get()
 
-                phrase_complete = False
+                intervention_complete = False
 
-                if phrase_time and now - phrase_time > timedelta(
-                    seconds=self.phrase_timeout
+                if intervention_time and now - intervention_time > timedelta(
+                    seconds=self.intervention_timeout
                 ):
-                    phrase_bytes = bytes()
-                    phrase_complete = True
+                    intervention_bytes = bytes()
+                    intervention_complete = True
 
-                phrase_time = now
-                phrase_bytes += data
+                intervention_time = now
+                intervention_bytes += data
 
                 audio_np = (
-                    np.frombuffer(phrase_bytes, dtype=np.int16).astype(np.float32)
+                    np.frombuffer(intervention_bytes, dtype=np.int16).astype(np.float32)
                     / 32768.0
                 )
 
@@ -101,11 +101,11 @@ class WhisperSTT:
                 print("STT text: ", text)
 
                 transcription.append(text)
-                if phrase_complete and text:
-
-                    print("STTEvent: ", " ".join(map(str, transcription)))
-                    yield STTEvent.create(" ".join(map(str, transcription)))
+                if intervention_completed and text:
+                    yield STTEndEvent.create(" ".join(map(str, transcription)))
                     transcription = [""]
+                else:
+                    yield STTChunkEvent.create(text)
 
             except asyncio.CancelledError:
                 break

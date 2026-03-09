@@ -108,8 +108,10 @@ SocketClientEvent = SocketHumanTranscription
 SocketServerEvent = SocketAgentTextChunkEvent | SocketAgentTextEndEvent
 """Events sent from the server to the turn-taking controller (client)."""
 
+SocketEvent = SocketClientEvent | SocketServerEvent
 
-def event_to_dict(event: SocketClientEvent | SocketServerEvent) -> dict:
+
+def event_to_dict(event: SocketEvent) -> dict:
     """Convert an event to a JSON-serializable dictionary."""
     if isinstance(event, SocketHumanTranscription):
         return {
