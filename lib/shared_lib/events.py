@@ -12,8 +12,8 @@ def now_ms() -> int:
 
 class Role(Enum):
     TEACHER = 1
-    AGENT_STUDENT = 2
-    HUMAN_STUDENT = 3
+    STUDENT = 2
+    HUMAN = 3
 
 
 @dataclass
@@ -50,7 +50,7 @@ class SocketAgentTextChunkEvent:
 
     type: Literal["agent_text_chunk"]
 
-    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    role: Literal[Role.STUDENT, Role.TEACHER]
     """
     Role of the agent who was speaking.
     """
@@ -65,7 +65,7 @@ class SocketAgentTextChunkEvent:
 
     @classmethod
     def create(
-        cls, text: str, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+        cls, text: str, role: Literal[Role.STUDENT, Role.TEACHER]
     ) -> "SocketAgentTextChunkEvent":
         """Factory method to create an SocketAgentTextChunkEvent with current timestamp."""
         return cls(type="agent_text_chunk", text=text, role=role, ts=now_ms())
@@ -84,7 +84,7 @@ class SocketAgentTextEndEvent:
 
     type: Literal["agent_text_end"]
 
-    role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+    role: Literal[Role.STUDENT, Role.TEACHER]
     """
     Role of the agent who was speaking.
     """
@@ -94,7 +94,7 @@ class SocketAgentTextEndEvent:
 
     @classmethod
     def create(
-        cls, role: Literal[Role.AGENT_STUDENT, Role.TEACHER]
+        cls, role: Literal[Role.STUDENT, Role.TEACHER]
     ) -> "SocketAgentTextEndEvent":
         """Factory method to create an SocketAgentTextEndEvent with current timestamp."""
         return cls(type="agent_text_end", role=role, ts=now_ms())

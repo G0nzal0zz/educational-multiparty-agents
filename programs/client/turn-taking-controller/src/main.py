@@ -1,96 +1,40 @@
-"""
-Turn Taking Controller - Client-side event processing pipeline.
-
-This module runs on the client and manages the turn-taking logic for a
-voice-based educational system. It coordinates between:
-
-1. Local user input (microphone) - transcribed via Whisper STT
-2. Remote agent input (from server) - audio to play + transcription
-
-The controller listens for events from both sources and decides who should
-take the turn to speak. When a decision is made, it sends the decision
-back to the server.
-"""
-
 import argparse
 import asyncio
-import base64
-import json
-import socket
-from collections.abc import AsyncIterator
 from sys import platform
 
-import numpy as np
-import sounddevice as sd
-import speech_recognition as sr
-from langchain_core.runnables import RunnableGenerator, RunnableLambda
-from shared_lib.events import (Role, SocketAgentTextChunkEvent,
-                               SocketAgentTextEndEvent, SocketClientEvent,
-                               SocketEvent, SocketServerEvent, event_to_dict)
-from shared_lib.utils import stream_reader_to_event
+from shared_lib.events import (
+    SocketAgentTextChunkEvent,
+    SocketAgentTextEndEvent,
+    SocketClientEvent,
+    SocketServerEvent,
+)
+from shared_lib.stream import read_event
 
-from events import STTChunkEvent, STTEndEvent, STTEvent
-from ollama_llm import OllamaLLM
+from config import config
+from event_handlers import AgentTextChunkHandler, AgentTextEndHandler, STTEventHandler
+from events import STTEndEvent, STTEvent
+from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
 
 HOST = "127.0.0.1"
 PORT = 9000
 
 
-async def send_event_to_server(sock: socket.socket, event: SocketClientEvent):
-    """Send an event from the client to the server over the socket."""
-    loop = asyncio.get_running_loop()
-    json_data = json.dumps(event_to_dict(event)) + "\n"
-    await loop.sock_sendall(sock, json_data.encode())
-
-
-async def event_pipeline(whisper: WhisperSTT, llama: OllamaLLM, sock: socket.socket):
-    """
-    Main event processing pipeline.
-
-    Concurrently listens to:
-    - Local user speech (via Whisper STT)
-    - Server events (agent audio and text)
-
-    When events arrive, processes them through the OllamaAgent to
-    make turn-taking decisions, and sends decisions back to the server.
-    """
-
-    user_task = asyncio.create_task(user_listener())
-    server_task = asyncio.create_task(server_listener())
-    process_task = asyncio.create_task(process_events())
-
-    try:
-        await asyncio.gather(user_task, server_task, process_task)
-    except asyncio.CancelledError:
-        user_task.cancel()
-        server_task.cancel()
-        process_task.cancel()
-
-
-async def user_listener(whisper: WhisperSTT, queue: asyncio.Queue[STTEvent]):
-    """Listen to local microphone and emit user speech events."""
-    async for event in whisper.STT():
-        await queue.put(event)
-
-
-async def server_listener(
-    reader: asyncio.StreamReader, queue: asyncio.Queue[SocketServerEvent]
-):
-    """Listen to local microphone and emit user speech events."""
-    async for event in stream_reader_to_event(reader):
-        if isinstance(event, SocketClientEvent):
-            print("Received SocketClientEvent in the clinet, skipping for now.")
-            continue
-        await queue.put(event)
-
-
 async def process_events(
     stt_queue: asyncio.Queue[STTEvent],
     teacher_queue: asyncio.Queue[SocketServerEvent],
     student_queue: asyncio.Queue[SocketServerEvent],
+    teacher_writer: asyncio.StreamWriter,
+    student_writer: asyncio.StreamWriter,
 ):
-    """Process events from both sources and make turn decisions."""
+    turn_manager = TurnManager()
+
+    stt_handler = STTEventHandler(teacher_writer, student_writer, turn_manager)
+    chunk_handler = AgentTextChunkHandler(turn_manager)
+    end_handler = AgentTextEndHandler(
+        teacher_writer, student_writer, turn_manager, stt_queue, student_queue
+    )
+
     while True:
         done, pending = await asyncio.wait(
             [
@@ -105,87 +49,75 @@ async def process_events(
             try:
                 event = task.result()
             except asyncio.CancelledError:
+                # TODO: Log exception
                 continue
 
             if isinstance(event, STTEndEvent):
-                print("test")
-                # TODO: send transcription to teacher and student
-                # handle_STT_end(event)
-
-            if isinstance(event, SocketAgentTextChunkEvent):
-                print("test")
-                # TODO: play audio through TTS
-                # handle_agent_text_chunk(event)
-
-            if isinstance(event, SocketAgentTextEndEvent):
-                # TODO: send transcribed text to the other server
-                if event.role == Role.TEACHER:
-                    # Wait for the user to talk
-                    try:
-                        sttEvent = await asyncio.wait_for(stt_queue.get(), 1.0)
-                        if isinstance(sttEvent, STTEndEvent):
-                            print("test")
-                            # handle_STT_end(sttEvent)
-                        else:
-                            continue
-
-                    except asyncio.TimeoutError:
-
-                    # TODO
-
-
-            #
-            # decision = await llama.process_event(event)
-            #
-            # if decision == None:
-            #     break
-            #
-            # if isinstance(decision, SocketTurnDecisionEvent):
-            #     await send_event_to_server(sock, decision)
-            #     print(f"Sent turn decision: {decision.role.name}")
-
-            # if isintance(decision, TurnCancelledEvent):
-            #     TODO: Handle turn cancellation
+                stt_handler.handle(event)
+            elif isinstance(event, SocketAgentTextChunkEvent):
+                chunk_handler.handle(event)
+            elif isinstance(event, SocketAgentTextEndEvent):
+                await end_handler.handle(event)
 
         for task in pending:
-            task.cancel()
+            _ = task.cancel()
 
 
-async def start(whisper: WhisperSTT, llama: OllamaLLM):
-    """Initialize socket connection and start the event pipeline."""
+async def user_listener(whisper: WhisperSTT, queue: asyncio.Queue[STTEvent]):
+    async for event in whisper.STT():
+        await queue.put(event)
+
+
+async def server_listener(
+    reader: asyncio.StreamReader, queue: asyncio.Queue[SocketServerEvent]
+):
+    async for event in read_event(reader):
+        if isinstance(event, SocketClientEvent):
+            print("Received SocketClientEvent in the client, skipping for now.")
+            continue
+        await queue.put(event)
+
+
+async def start(whisper: WhisperSTT):
     stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
     teacher_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
     student_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
 
-    teacherReader, teacherWriter = await asyncio.open_connection("127.0.0.1", 8000)
-    studentReader, studentWriter = await asyncio.open_connection("127.0.0.1", 8001)
+    # -------- SOCKET CONNECTIONS --------
+    teacher_reader, teacher_writer = await asyncio.open_connection(
+        config.TEACHER_SERVER_HOST, config.TEACHER_SERVER_PORT
+    )
+    student_reader, student_writer = await asyncio.open_connection(
+        config.STUDENT_SERVER_HOST, config.STUDENT_SERVER_PORT
+    )
 
-    user_listener_task = asyncio.create_task(user_listener(whisper, stt_queue))
-    teacher_listener_task = asyncio.create_task(
-        server_listener(teacherReader, teacher_queue)
-    )
-    student_listener_task = asyncio.create_task(
-        server_listener(studentReader, student_queue)
-    )
-    process_events_taks = asyncio.create_task(
-        process_events(stt_queue, teacher_queue, student_queue)
+    # -------- TASKS --------
+    user_task = asyncio.create_task(user_listener(whisper, stt_queue))
+    teacher_task = asyncio.create_task(server_listener(teacher_reader, teacher_queue))
+    student_task = asyncio.create_task(server_listener(student_reader, student_queue))
+    process_events_task = asyncio.create_task(
+        process_events(
+            stt_queue, teacher_queue, student_queue, teacher_writer, student_writer
+        )
     )
 
     try:
         _ = await asyncio.gather(
-            user_listener_task,
-            teacher_listener_task,
-            student_listener_task,
-            process_events_taks,
+            user_task,
+            teacher_task,
+            student_task,
+            process_events_task,
         )
     except asyncio.CancelledError:
-        _ = user_listener_task.cancel()
-        _ = teacher_listener_task.cancel()
-        _ = student_listener_task.cancel()
-        _ = process_events_taks.cancel()
+        _ = user_task.cancel()
+        _ = teacher_task.cancel()
+        _ = student_task.cancel()
+        _ = process_events_task.cancel()
 
 
 async def main():
+    import speech_recognition as sr
+
     parser = argparse.ArgumentParser(description="Turn Taking Controller Client")
     _ = parser.add_argument(
         "--model",
@@ -244,9 +176,9 @@ async def main():
         source = sr.Microphone(sample_rate=16000)
 
     whisper = WhisperSTT(args, source)
-    llama = OllamaLLM()
+    llama = None
 
-    await start(whisper, llama)
+    await start(whisper)
 
 
 if __name__ == "__main__":
