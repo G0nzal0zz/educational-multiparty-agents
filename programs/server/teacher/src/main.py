@@ -2,20 +2,18 @@ import asyncio
 from collections.abc import AsyncIterator
 
 from langchain_core.runnables import RunnableGenerator
-from server_lib.chatterbox_tts import ChatterboxTTS
 from server_lib.events import AgentChunkEvent, AgentEndEvent, ServerEvent
 from server_lib.handler import ClientHandler
 from server_lib.ollama_llm import OLlamaLLM
 from server_lib.prompts import TTS_SYSTEM_PROMPT
 from shared_lib.events import (
     Role,
-    SocketAgentAudioChunkEvent,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
     SocketClientEvent,
+    SocketEvent,
     SocketHumanTranscription,
     SocketServerEvent,
-    SocketTurnCancelledEvent,
 )
 
 system_prompt = f"""
@@ -31,7 +29,7 @@ agent = OLlamaLLM(system_prompt)
 
 
 async def _ollama_agent_stream(
-    event_stream: AsyncIterator[SocketClientEvent],
+    event_stream: AsyncIterator[SocketEvent],
 ) -> AsyncIterator[ServerEvent]:
     """Process incoming client events and generate LLM responses.
 
@@ -40,15 +38,15 @@ async def _ollama_agent_stream(
     """
 
     cancelled = asyncio.Event()
-    pending: asyncio.Queue[SocketClientEvent | None] = asyncio.Queue()
+    pending: asyncio.Queue[SocketEvent | None] = asyncio.Queue()
 
     async def _feed_events():
         """Continuously read client events into a queue, flagging cancellations."""
         async for event in event_stream:
-            if isinstance(event, SocketTurnCancelledEvent):
-                cancelled.set()
-            else:
-                await pending.put(event)
+            # if isinstance(event, SocketTurnCancelledEvent):
+            #     cancelled.set()
+            # else:
+            await pending.put(event)
         await pending.put(None)  # Sentinel: client stream ended
 
     feeder = asyncio.create_task(_feed_events())
@@ -80,49 +78,21 @@ async def _ollama_agent_stream(
             pass
 
 
-async def _chatterbox_tts_stream(
-    event_stream: AsyncIterator[ServerEvent],
-) -> AsyncIterator[ServerEvent | SocketAgentAudioChunkEvent]:
-    """Buffer agent text chunks and synthesize TTS audio when the agent finishes."""
-    tts = ChatterboxTTS()
-
-    buffer: list[str] = []
-    async for event in event_stream:
-        # Pass through all events (they'll be converted to socket events downstream)
-        yield event
-
-        if isinstance(event, AgentChunkEvent):
-            buffer.append(event.text)
-
-        if isinstance(event, AgentEndEvent):
-            full_text = " ".join(buffer)
-            print(f"TTS synthesizing: {full_text}")
-            tts_event = await tts.generate(full_text)
-            yield tts_event
-            buffer = []
-
-
 async def _to_socket_events(
-    event_stream: AsyncIterator[ServerEvent | SocketAgentAudioChunkEvent],
+    event_stream: AsyncIterator[ServerEvent],
 ) -> AsyncIterator[SocketServerEvent]:
     """Convert internal pipeline events to socket events for transmission to the client."""
     async for event in event_stream:
         if isinstance(event, AgentChunkEvent):
-            yield SocketAgentTextChunkEvent.create(
-                text=event.text, role=Role.TEACHER
-            )
+            yield SocketAgentTextChunkEvent.create(text=event.text, role=Role.TEACHER)
         elif isinstance(event, AgentEndEvent):
             yield SocketAgentTextEndEvent.create(role=Role.TEACHER)
-        elif isinstance(event, SocketAgentAudioChunkEvent):
-            yield event
         else:
             print(f"WARNING: Unknown event type in pipeline: {type(event)}")
 
 
-pipeline = (
-    RunnableGenerator(_ollama_agent_stream)
-    | RunnableGenerator(_chatterbox_tts_stream)
-    | RunnableGenerator(_to_socket_events)
+pipeline = RunnableGenerator(_ollama_agent_stream) | RunnableGenerator(
+    _to_socket_events
 )
 
 

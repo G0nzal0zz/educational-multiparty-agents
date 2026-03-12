@@ -2,6 +2,7 @@ import argparse
 import asyncio
 from sys import platform
 
+import speech_recognition as sr
 from shared_lib.events import (
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
@@ -94,10 +95,10 @@ async def start(whisper: WhisperSTT):
     # -------- TASKS --------
     user_task = asyncio.create_task(user_listener(whisper, stt_queue))
     teacher_task = asyncio.create_task(server_listener(teacher_reader, teacher_queue))
-    student_task = asyncio.create_task(server_listener(student_reader, student_queue))
+    student_task = asyncio.create_task(server_listener(teacher_reader, student_queue))
     process_events_task = asyncio.create_task(
         process_events(
-            stt_queue, teacher_queue, student_queue, teacher_writer, student_writer
+            stt_queue, teacher_queue, student_queue, teacher_writer, teacher_writer
         )
     )
 
@@ -116,8 +117,6 @@ async def start(whisper: WhisperSTT):
 
 
 async def main():
-    import speech_recognition as sr
-
     parser = argparse.ArgumentParser(description="Turn Taking Controller Client")
     _ = parser.add_argument(
         "--model",
@@ -146,6 +145,12 @@ async def main():
         "--phrase_timeout",
         default=3,
         help="Silence duration (seconds) to consider as end of phrase",
+        type=float,
+    )
+    _ = parser.add_argument(
+        "--intervention_timeout",
+        default=5,
+        help="Maximum time (seconds) to wait for user intervention",
         type=float,
     )
     if "linux" in platform:

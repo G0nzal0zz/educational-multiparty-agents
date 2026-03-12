@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 
 from langchain_core.runnables import RunnableSerializable
 from shared_lib.events import (
@@ -9,24 +10,26 @@ from shared_lib.events import (
     bytes_to_event,
     event_to_dict,
 )
-from shared_lib.utils import stream_reader_to_event
+from shared_lib.stream import read_event
 
-from server_lib.events import ServerEvent, TTSChunkEvent
+from server_lib.events import ServerEvent
 
 
 class ClientHandler:
-    def __init__(self, pipeline: RunnableSerializable[bytes, ServerEvent]):
-        self.pipeline: RunnableSerializable[bytes, ServerEvent] = pipeline
+    def __init__(self, pipeline: RunnableSerializable[SocketEvent, SocketServerEvent]):
+        self.pipeline: RunnableSerializable[SocketEvent, SocketServerEvent] = pipeline
 
-    async def socket_reader_to_event(self, reader: asyncio.StreamReader):
-        async for event in stream_reader_to_event(reader):
-            if isinstance(event, SocketServerEvent):
-                print("Received a SockerServerEvent in a server, skipping for now.")
-                continue
+    async def socket_reader_to_event(
+        self, reader: asyncio.StreamReader
+    ) -> AsyncGenerator[SocketEvent]:
+        async for event in read_event(reader):
+            # if isinstance(event, SocketServerEvent):
+            #     print("Received a SockerServerEvent in a server, skipping for now.")
+            #     continue
             yield event
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        output_stream = self.pipeline.atransform(self.stream_reader_to_event(reader))
+        output_stream = self.pipeline.atransform(self.socket_reader_to_event(reader))
 
         try:
             async for event in output_stream:

@@ -1,5 +1,7 @@
 import asyncio
+import threading
 from dataclasses import dataclass
+from queue import Queue
 
 from shared_lib.events import (
     Role,
@@ -10,6 +12,7 @@ from shared_lib.events import (
 )
 from shared_lib.stream import write_event
 
+from chatterbox_tts import ChatterboxTTS
 from config import config
 from events import STTEndEvent, STTEvent
 from turn_manager import Turn, TurnManager
@@ -39,9 +42,18 @@ class STTEventHandler:
 
 class AgentTextChunkHandler:
     turn_manager: TurnManager
+    text_queue: Queue[str]
+    chatterbox: ChatterboxTTS
 
     def __init__(self, turn_manager: TurnManager):
         self.turn_manager = turn_manager
+        self.text_queue = Queue[str]()
+        self.chatterbox = ChatterboxTTS()
+        tts_thread = threading.Thread(
+            target=self.chatterbox.start, args=(self.text_queue,)
+        )
+        tts_thread.daemon = True
+        tts_thread.start()
 
     def handle(self, event: SocketAgentTextChunkEvent) -> None:
         if (
@@ -49,6 +61,7 @@ class AgentTextChunkHandler:
             and self.turn_manager.current_turn == Turn.TEACHER
         ):
             print("Teacher is talking")
+            self.text_queue.put(event.text)
         elif (
             event.role == Role.STUDENT
             and self.turn_manager.current_turn == Turn.STUDENT
