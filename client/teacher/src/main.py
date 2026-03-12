@@ -1,11 +1,12 @@
 import asyncio
 from collections.abc import AsyncIterator
 
+from client_lib.config import config
+from client_lib.events import AgentChunkEvent, AgentEndEvent, ServerEvent
+from client_lib.handler import ClientHandler
+from client_lib.ollama_llm import OLlamaLLM
+from client_lib.prompts import TTS_SYSTEM_PROMPT
 from langchain_core.runnables import RunnableGenerator
-from server_lib.events import AgentChunkEvent, AgentEndEvent, ServerEvent
-from server_lib.handler import ClientHandler
-from server_lib.ollama_llm import OLlamaLLM
-from server_lib.prompts import TTS_SYSTEM_PROMPT
 from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
@@ -96,13 +97,16 @@ pipeline = RunnableGenerator(_ollama_agent_stream) | RunnableGenerator(
 )
 
 
-async def server():
+async def start_client():
     client_handler = ClientHandler(pipeline)
-    srv = await asyncio.start_server(client_handler.handle, "127.0.0.1", 9000)
-    print("Teacher server listening on 127.0.0.1:9000")
-    async with srv:
-        await srv.serve_forever()
+
+    reader, writer = await asyncio.open_connection(
+        config.TTC_SERVER_HOST, config.TTC_SERVER_PORT
+    )
+
+    print("Teacher client connected to TTC")
+    await client_handler.handle(reader, writer)
 
 
 if __name__ == "__main__":
-    asyncio.run(server())
+    asyncio.run(start_client())

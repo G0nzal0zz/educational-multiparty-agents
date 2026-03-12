@@ -12,7 +12,7 @@ from shared_lib.events import (
 )
 from shared_lib.stream import read_event
 
-from server_lib.events import ServerEvent
+from client_lib.events import ServerEvent
 
 
 class ClientHandler:
@@ -34,7 +34,7 @@ class ClientHandler:
         try:
             async for event in output_stream:
                 if not isinstance(event, SocketServerEvent):
-                    print("ERROR: Tried to send an invalid event to the client")
+                    print("ERROR: Tried to send an invalid event to the server")
                     continue
                 dict = event_to_dict(event)
                 json_data = json.dumps(event_to_dict(event)) + "\n"

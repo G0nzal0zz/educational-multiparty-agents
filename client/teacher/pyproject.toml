@@ -1,11 +1,11 @@
 [project]
 name = "teacher"
 version = "0.1.0"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
     "peft>=0.18.1",
-    "client-lib>=0.1.0",
     "setuptools==80.9.0",
+    "client-lib>=0.1.0",
     "shared-lib>=0.1.0",
 ]
 
@@ -13,6 +13,6 @@ dependencies = [
 pkuseg = ["numpy"]
 
 [tool.uv.sources]
-shared-lib = { path = "../../../lib", editable = true }
+shared-lib = { path = "../../lib", editable = true }
 client-lib = { path = "../lib", editable = true }
 
