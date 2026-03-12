@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "peft>=0.18.1",
-    "server-lib>=0.1.0",
+    "client-lib>=0.1.0",
     "setuptools==80.9.0",
     "shared-lib>=0.1.0",
 ]
@@ -14,5 +14,5 @@ pkuseg = ["numpy"]
 
 [tool.uv.sources]
 shared-lib = { path = "../../../lib", editable = true }
-server-lib = { path = "../lib", editable = true }
+client-lib = { path = "../lib", editable = true }
 
