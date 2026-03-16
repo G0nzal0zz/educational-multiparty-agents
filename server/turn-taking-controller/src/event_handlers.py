@@ -20,23 +20,20 @@ from turn_manager import Turn, TurnManager
 
 class STTEventHandler:
     turn_manager: TurnManager
-    teacher_writer: asyncio.StreamWriter
-    student_writer: asyncio.StreamWriter
+    server_writers: dict[Role, asyncio.StreamWriter]
 
     def __init__(
         self,
-        teacher_writer: asyncio.StreamWriter,
-        student_writer: asyncio.StreamWriter,
+        server_writers: dict[Role, asyncio.StreamWriter],
         turn_manager: TurnManager,
     ):
-        self.teacher_writer = teacher_writer
-        self.student_writer = student_writer
+        self.server_writers = server_writers
         self.turn_manager = turn_manager
 
     def handle(self, event: STTEndEvent) -> None:
         human_event = SocketHumanTranscription.create(event.transcript)
-        write_event(self.teacher_writer, human_event)
-        write_event(self.student_writer, human_event)
+        write_event(self.server_writers[Role.TEACHER], human_event)
+        # write_event(self.server_writers[Role.STUDENT], human_event)
         self.turn_manager.set_turn(Turn.TEACHER)
 
 
@@ -74,25 +71,19 @@ class AgentTextChunkHandler:
 
 
 class AgentTextEndHandler:
-    teacher_writer: asyncio.StreamWriter
-    student_writer: asyncio.StreamWriter
+    server_writers: dict[Role, asyncio.StreamWriter]
     turn_manager: TurnManager
     stt_queue: asyncio.Queue[STTEvent]
-    student_queue: asyncio.Queue[SocketServerEvent]
 
     def __init__(
         self,
-        teacher_writer: asyncio.StreamWriter,
-        student_writer: asyncio.StreamWriter,
+        server_writers: dict[Role, asyncio.StreamWriter],
         turn_manager: TurnManager,
         stt_queue: asyncio.Queue[STTEvent],
-        student_queue: asyncio.Queue[SocketServerEvent],
     ):
-        self.teacher_writer = teacher_writer
-        self.student_writer = student_writer
+        self.server_writers = server_writers
         self.turn_manager = turn_manager
         self.stt_queue = stt_queue
-        self.student_queue = student_queue
 
     async def handle(self, event: SocketAgentTextEndEvent) -> None:
         if event.role == Role.TEACHER:
@@ -105,7 +96,7 @@ class AgentTextEndHandler:
             print("Teacher finished speaking but it was not his turn.")
             return
 
-        write_event(self.student_writer, event)
+        # write_event(self.server_writers[Role.STUDENT], event)
         self.turn_manager.set_turn(Turn.IDLE)
 
         start = asyncio.get_event_loop().time()
@@ -125,6 +116,6 @@ class AgentTextEndHandler:
             print("Student finished speaking but it was not his turn.")
             return
 
-        write_event(self.teacher_writer, event)
+        write_event(self.server_writers[Role.TEACHER], event)
         self.turn_manager.set_turn(Turn.TEACHER)
         print("Student finished speaking. Setting TURN to TEACHER")

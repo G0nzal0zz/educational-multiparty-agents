@@ -26,6 +26,7 @@ class ClientHandler:
             # if isinstance(event, SocketServerEvent):
             #     print("Received a SockerServerEvent in a server, skipping for now.")
             #     continue
+            print(f"Received event: {event}")
             yield event
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):

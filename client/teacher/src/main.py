@@ -67,6 +67,7 @@ async def _ollama_agent_stream(
                 if cancelled.is_set():
                     print("Turn cancelled, aborting generation")
                     break
+                print(f"Sending AgentChunkEvent {chunk}")
                 yield chunk
 
             # Always emit AgentEndEvent so downstream stages flush their buffers

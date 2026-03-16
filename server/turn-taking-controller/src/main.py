@@ -3,8 +3,8 @@ import asyncio
 from sys import platform
 
 import speech_recognition as sr
-from handler import ClientHandler
 from shared_lib.events import (
+    Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
     SocketClientEvent,
@@ -25,22 +25,19 @@ PORT = 9000
 async def process_events(
     stt_queue: asyncio.Queue[STTEvent],
     server_queue: asyncio.Queue[SocketServerEvent],
-    server_writer: asyncio.StreamWriter,
+    server_writer: dict[Role, asyncio.StreamWriter],
 ):
     turn_manager = TurnManager()
 
-    stt_handler = STTEventHandler(teacher_writer, student_writer, turn_manager)
+    stt_handler = STTEventHandler(server_writer, turn_manager)
     chunk_handler = AgentTextChunkHandler(turn_manager)
-    end_handler = AgentTextEndHandler(
-        teacher_writer, student_writer, turn_manager, stt_queue, student_queue
-    )
+    end_handler = AgentTextEndHandler(server_writer, turn_manager, stt_queue)
 
     while True:
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(stt_queue.get()),
-                asyncio.create_task(teacher_queue.get()),
-                asyncio.create_task(student_queue.get()),
+                asyncio.create_task(server_queue.get()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -81,38 +78,41 @@ async def server_listener(
 async def start(whisper: WhisperSTT):
     stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
     server_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
+    server_writers: dict[Role, asyncio.StreamWriter] = {}
 
-    # -------- SOCKET CONNECTIONS --------
-    # teacher_reader, teacher_writer = await asyncio.open_connection(
-    #     config.TEACHER_SERVER_HOST, config.TEACHER_SERVER_PORT
-    # )
-    # student_reader, student_writer = await asyncio.open_connection(
-    #     config.STUDENT_SERVER_HOST, config.STUDENT_SERVER_PORT
-    # )
+    user_task = asyncio.create_task(user_listener(whisper, stt_queue))
+    process_events_task = asyncio.create_task(
+        process_events(
+            stt_queue,
+            server_queue,
+            server_writers,
+        )
+    )
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        user_task = asyncio.create_task(user_listener(whisper, stt_queue))
+        if len(server_writers) == 0:
+            role = Role.TEACHER
+        else:
+            role = Role.STUDENT
+
+        server_writers[role] = writer
         server_task = asyncio.create_task(server_listener(reader, server_queue))
-        process_events_task = asyncio.create_task(
-            process_events(
-                stt_queue,
-                server_queue,
-                writer,
-            )
-        )
 
         try:
-            _ = await asyncio.gather(user_task, server_task, process_events_task)
+            _ = await server_task
         except asyncio.CancelledError:
-            _ = user_task.cancel()
             _ = server_task.cancel()
-            _ = process_events_task.cancel()
+        finally:
+            server_writers.pop(role, None)
 
     server = await asyncio.start_server(handle, config.HOST, config.PORT)
     print(f"TTC server listening on {config.HOST}:{config.PORT}")
 
-    async with server:
-        await server.serve_forever()
+    try:
+        _ = await asyncio.gather(user_task, process_events_task, server.serve_forever())
+    except asyncio.CancelledError:
+        _ = user_task.cancel()
+        _ = process_events_task.cancel()
 
 
 async def main():

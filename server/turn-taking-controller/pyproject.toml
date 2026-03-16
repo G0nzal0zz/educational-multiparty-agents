@@ -12,6 +12,7 @@ dependencies = [
     "onnx>=1.16.0,<1.19.0",
     "SpeechRecognition>=3.8.0",
     "PyAudio>=0.2.14",
+    "resemble-perth @ git+https://github.com/eschmidbauer/Perth.git"
 ]
 
 [tool.uv.sources]

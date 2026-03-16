@@ -44,7 +44,7 @@ class ChatterboxTTS:
             except Exception as e:
                 print(f"Audio player error: {e}")
 
-    async def start(self, text_queue: queue.Queue[str]):
+    def start(self, text_queue: queue.Queue[str]):
         model = ChatterboxTurboTTS.from_pretrained(device=device)
 
         streamed_chunks = []
@@ -60,7 +60,8 @@ class ChatterboxTTS:
 
         while True:
             try:
-                text_chunk = text_queue.get(timeout=1.0)
+                text_chunk = text_queue.get()
+
                 initial_time = time.time()
                 for audio_chunk in model.generate(
                     text=text_chunk,
@@ -87,6 +88,9 @@ class ChatterboxTTS:
                 print("\nPlayback interrupted by user")
             except Exception as e:
                 print(f"Error during streaming generation: {e}")
+                import traceback
+
+                traceback.print_exc()
 
         # Stop audio thread
         if audio_queue:
