@@ -6,7 +6,7 @@ from langchain_ollama import ChatOllama
 from client_lib.events import AgentChunkEvent, AgentEndEvent
 from client_lib.prompts import TTS_SYSTEM_PROMPT
 
-PHRASES_IN_CHUNK = 5
+PHRASES_IN_CHUNK = 2
 
 
 class OLlamaLLM:
