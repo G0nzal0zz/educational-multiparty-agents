@@ -30,7 +30,8 @@ class STTEndEventHandler:
     def handle(self, event: STTEndEvent) -> None:
         human_event = SocketHumanTranscription.create(event.transcript)
         write_event(self.server_writers[Role.TEACHER], human_event)
-        # write_event(self.server_writers[Role.STUDENT], human_event)
+        if Role.STUDENT in self.server_writers:
+            write_event(self.server_writers[Role.STUDENT], human_event)
         self.turn_manager.set_turn(Turn.TEACHER)
 
 
@@ -138,8 +139,8 @@ class AgentTextEndHandler:
             return
 
         self.text_queue.put(None)
-        # TODO: Uncomment when student is working
-        # write_event(self.server_writers[Role.STUDENT], event)
+        if Role.STUDENT in self.server_writers:
+            write_event(self.server_writers[Role.STUDENT], event)
 
     def _handle_student_end(self, event: SocketAgentTextEndEvent) -> None:
         if self.turn_manager.current_turn != Turn.STUDENT:
