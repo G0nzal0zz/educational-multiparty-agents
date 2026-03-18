@@ -1,24 +1,21 @@
 import asyncio
-import threading
-from dataclasses import dataclass
-from queue import Queue
+import queue
 
 from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
     SocketHumanTranscription,
-    SocketServerEvent,
 )
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
 from config import config
-from events import STTEndEvent, STTEvent
+from events import STTEndEvent, TTSEndEvent, TTSEvent
 from turn_manager import Turn, TurnManager
 
 
-class STTEventHandler:
+class STTEndEventHandler:
     turn_manager: TurnManager
     server_writers: dict[Role, asyncio.StreamWriter]
 
@@ -37,67 +34,28 @@ class STTEventHandler:
         self.turn_manager.set_turn(Turn.TEACHER)
 
 
-class AgentTextChunkHandler:
+class TTSEndEventHandler:
     turn_manager: TurnManager
-    text_queue: Queue[str]
-    chatterbox: ChatterboxTTS
-
-    def __init__(self, turn_manager: TurnManager):
-        self.turn_manager = turn_manager
-        self.text_queue = Queue[str]()
-        self.chatterbox = ChatterboxTTS()
-        tts_thread = threading.Thread(
-            target=self.chatterbox.start, args=(self.text_queue,)
-        )
-        tts_thread.daemon = True
-        tts_thread.start()
-
-    def handle(self, event: SocketAgentTextChunkEvent) -> None:
-        if (
-            event.role == Role.TEACHER
-            and self.turn_manager.current_turn == Turn.TEACHER
-        ):
-            print("Teacher is talking")
-            self.text_queue.put(event.text)
-        elif (
-            event.role == Role.STUDENT
-            and self.turn_manager.current_turn == Turn.STUDENT
-        ):
-            print("Student is talking")
-        else:
-            print(
-                f"Received SocketAgentTextChunkEvent, but audio couldn't be reproduced. Role = {event.role}, Turn = {self.turn_manager.current_turn}"
-            )
-
-
-class AgentTextEndHandler:
-    server_writers: dict[Role, asyncio.StreamWriter]
-    turn_manager: TurnManager
-    stt_queue: asyncio.Queue[STTEvent]
+    stt_queue: asyncio.Queue[TTSEvent]
 
     def __init__(
         self,
-        server_writers: dict[Role, asyncio.StreamWriter],
         turn_manager: TurnManager,
-        stt_queue: asyncio.Queue[STTEvent],
+        stt_queue: asyncio.Queue[TTSEvent],
     ):
-        self.server_writers = server_writers
         self.turn_manager = turn_manager
         self.stt_queue = stt_queue
 
-    async def handle(self, event: SocketAgentTextEndEvent) -> None:
+    async def handle(self, event: TTSEndEvent) -> None:
         if event.role == Role.TEACHER:
-            await self._handle_teacher_end(event)
+            await self._handle_teacher_end()
         elif event.role == Role.STUDENT:
-            self._handle_student_end(event)
+            self._handle_student_end()
 
-    async def _handle_teacher_end(self, event: SocketAgentTextEndEvent) -> None:
+    async def _handle_teacher_end(self) -> None:
         if self.turn_manager.current_turn != Turn.TEACHER:
             print("Teacher finished speaking but it was not his turn.")
             return
-
-        # write_event(self.server_writers[Role.STUDENT], event)
-        self.turn_manager.set_turn(Turn.IDLE)
 
         start = asyncio.get_event_loop().time()
         while asyncio.get_event_loop().time() - start < config.USER_TURN_TIMEOUT:
@@ -111,11 +69,81 @@ class AgentTextEndHandler:
         self.turn_manager.set_turn(Turn.STUDENT)
         print("Teacher finished speaking. Setting TURN to STUDENT")
 
-    def _handle_student_end(self, event: SocketAgentTextEndEvent) -> None:
+    def _handle_student_end(self) -> None:
         if self.turn_manager.current_turn != Turn.STUDENT:
             print("Student finished speaking but it was not his turn.")
             return
 
-        write_event(self.server_writers[Role.TEACHER], event)
         self.turn_manager.set_turn(Turn.TEACHER)
         print("Student finished speaking. Setting TURN to TEACHER")
+
+
+class AgentTextChunkHandler:
+    turn_manager: TurnManager
+    text_queue: queue.Queue[str | None]
+    chatterbox: ChatterboxTTS
+    tts_thread: asyncio.Task | None
+
+    def __init__(
+        self,
+        turn_manager: TurnManager,
+        tts_queue: asyncio.Queue[TTSEvent],
+        text_queue: queue.Queue[str | None],
+    ):
+        self.turn_manager = turn_manager
+        self.chatterbox = ChatterboxTTS(tts_queue, text_queue)
+        self.tts_thread = None
+        self.text_queue = text_queue
+
+    def handle(self, event: SocketAgentTextChunkEvent) -> None:
+        if self.turn_manager.is_role_turn(event.role):
+            # If TTS thread isn't running intialize it
+            if self.tts_thread is None or self.tts_thread.done():
+                thread = asyncio.to_thread(
+                    self.chatterbox.start, event.role, asyncio.get_running_loop()
+                )
+                self.tts_thread = asyncio.create_task(thread)
+
+            self.text_queue.put(event.text)
+        else:
+            print(
+                f"Received SocketAgentTextChunkEvent, but audio couldn't be reproduced. Role = {event.role}, Turn = {self.turn_manager.current_turn}"
+            )
+
+
+class AgentTextEndHandler:
+    server_writers: dict[Role, asyncio.StreamWriter]
+    turn_manager: TurnManager
+    text_queue: queue.Queue[str | None]
+
+    def __init__(
+        self,
+        server_writers: dict[Role, asyncio.StreamWriter],
+        turn_manager: TurnManager,
+        text_queue: queue.Queue[str | None],
+    ):
+        self.server_writers = server_writers
+        self.turn_manager = turn_manager
+        self.text_queue = text_queue
+
+    def handle(self, event: SocketAgentTextEndEvent) -> None:
+        if event.role == Role.TEACHER:
+            self._handle_teacher_end(event)
+        elif event.role == Role.STUDENT:
+            self._handle_student_end(event)
+
+    def _handle_teacher_end(self, event: SocketAgentTextEndEvent) -> None:
+        if self.turn_manager.current_turn != Turn.TEACHER:
+            print("Teacher finished STREAMING text but it was not his turn.")
+            return
+
+        self.text_queue.put(None)
+        # TODO: Uncomment when student is working
+        # write_event(self.server_writers[Role.STUDENT], event)
+
+    def _handle_student_end(self, event: SocketAgentTextEndEvent) -> None:
+        if self.turn_manager.current_turn != Turn.STUDENT:
+            print("Student finished STREAMING text but it was not his turn.")
+            return
+
+        write_event(self.server_writers[Role.TEACHER], event)

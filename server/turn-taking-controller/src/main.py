@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import queue
 from sys import platform
 
 import speech_recognition as sr
@@ -13,8 +14,13 @@ from shared_lib.events import (
 from shared_lib.stream import read_event
 
 from config import config
-from event_handlers import AgentTextChunkHandler, AgentTextEndHandler, STTEventHandler
-from events import STTEndEvent, STTEvent
+from event_handlers import (
+    AgentTextChunkHandler,
+    AgentTextEndHandler,
+    STTEndEventHandler,
+    TTSEndEventHandler,
+)
+from events import STTEndEvent, STTEvent, TTSEvent
 from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
 
@@ -24,19 +30,24 @@ PORT = 9000
 
 async def process_events(
     stt_queue: asyncio.Queue[STTEvent],
+    tts_queue: asyncio.Queue[TTSEvent],
+    text_queue: queue.Queue[str | None],
     server_queue: asyncio.Queue[SocketServerEvent],
     server_writer: dict[Role, asyncio.StreamWriter],
 ):
     turn_manager = TurnManager()
 
-    stt_handler = STTEventHandler(server_writer, turn_manager)
-    chunk_handler = AgentTextChunkHandler(turn_manager)
-    end_handler = AgentTextEndHandler(server_writer, turn_manager, stt_queue)
+    stt_handler = STTEndEventHandler(server_writer, turn_manager)
+    tts_handler = TTSEndEventHandler(turn_manager, tts_queue)
+
+    chunk_handler = AgentTextChunkHandler(turn_manager, tts_queue, text_queue)
+    end_handler = AgentTextEndHandler(server_writer, turn_manager, text_queue)
 
     while True:
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(stt_queue.get()),
+                asyncio.create_task(tts_queue.get()),
                 asyncio.create_task(server_queue.get()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
@@ -51,10 +62,12 @@ async def process_events(
 
             if isinstance(event, STTEndEvent):
                 stt_handler.handle(event)
+            elif isinstance(event, TTSEvent):
+                await tts_handler.handle(event)
             elif isinstance(event, SocketAgentTextChunkEvent):
                 chunk_handler.handle(event)
             elif isinstance(event, SocketAgentTextEndEvent):
-                await end_handler.handle(event)
+                end_handler.handle(event)
 
         for task in pending:
             _ = task.cancel()
@@ -77,6 +90,8 @@ async def server_listener(
 
 async def start(whisper: WhisperSTT):
     stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
+    tts_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
+    text_queue: queue.Queue[str | None] = queue.Queue()
     server_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
     server_writers: dict[Role, asyncio.StreamWriter] = {}
 
@@ -84,6 +99,8 @@ async def start(whisper: WhisperSTT):
     process_events_task = asyncio.create_task(
         process_events(
             stt_queue,
+            tts_queue,
+            text_queue,
             server_queue,
             server_writers,
         )

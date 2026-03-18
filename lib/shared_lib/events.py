@@ -11,9 +11,9 @@ def now_ms() -> int:
 
 
 class Role(Enum):
-    TEACHER = 1
-    STUDENT = 2
-    HUMAN = 3
+    HUMAN = 1
+    TEACHER = 2
+    STUDENT = 3
 
 
 @dataclass
