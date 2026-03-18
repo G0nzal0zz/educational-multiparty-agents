@@ -2,8 +2,14 @@
 name = "student"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "client-lib>=0.1.0",
+    "shared-lib>=0.1.0",
+]
 
 [project.scripts]
-student = "src.main:server"
+student = "src.main:start_client"
 
+[tool.uv.sources]
+shared-lib = { path = "../../lib", editable = true }
+client-lib = { path = "../lib", editable = true }
