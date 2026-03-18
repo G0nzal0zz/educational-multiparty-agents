@@ -1,5 +1,7 @@
 from enum import Enum
 
+from shared_lib.events import Role
+
 
 class Turn(Enum):
     HUMAN = 1
@@ -18,3 +20,6 @@ class TurnManager:
 
     def set_turn(self, turn: Turn) -> None:
         self._current_turn = turn
+
+    def is_role_turn(self, role: Role) -> bool:
+        return self._current_turn.value == role.value

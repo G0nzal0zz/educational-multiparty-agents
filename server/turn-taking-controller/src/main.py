@@ -1,8 +1,11 @@
 import argparse
 import asyncio
+import queue
 from sys import platform
 
+import speech_recognition as sr
 from shared_lib.events import (
+    Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
     SocketClientEvent,
@@ -11,8 +14,13 @@ from shared_lib.events import (
 from shared_lib.stream import read_event
 
 from config import config
-from event_handlers import AgentTextChunkHandler, AgentTextEndHandler, STTEventHandler
-from events import STTEndEvent, STTEvent
+from event_handlers import (
+    AgentTextChunkHandler,
+    AgentTextEndHandler,
+    STTEndEventHandler,
+    TTSEndEventHandler,
+)
+from events import STTEndEvent, STTEvent, TTSEvent
 from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
 
@@ -22,25 +30,25 @@ PORT = 9000
 
 async def process_events(
     stt_queue: asyncio.Queue[STTEvent],
-    teacher_queue: asyncio.Queue[SocketServerEvent],
-    student_queue: asyncio.Queue[SocketServerEvent],
-    teacher_writer: asyncio.StreamWriter,
-    student_writer: asyncio.StreamWriter,
+    tts_queue: asyncio.Queue[TTSEvent],
+    text_queue: queue.Queue[str | None],
+    server_queue: asyncio.Queue[SocketServerEvent],
+    server_writer: dict[Role, asyncio.StreamWriter],
 ):
     turn_manager = TurnManager()
 
-    stt_handler = STTEventHandler(teacher_writer, student_writer, turn_manager)
-    chunk_handler = AgentTextChunkHandler(turn_manager)
-    end_handler = AgentTextEndHandler(
-        teacher_writer, student_writer, turn_manager, stt_queue, student_queue
-    )
+    stt_handler = STTEndEventHandler(server_writer, turn_manager)
+    tts_handler = TTSEndEventHandler(turn_manager, tts_queue)
+
+    chunk_handler = AgentTextChunkHandler(turn_manager, tts_queue, text_queue)
+    end_handler = AgentTextEndHandler(server_writer, turn_manager, text_queue)
 
     while True:
         done, pending = await asyncio.wait(
             [
                 asyncio.create_task(stt_queue.get()),
-                asyncio.create_task(teacher_queue.get()),
-                asyncio.create_task(student_queue.get()),
+                asyncio.create_task(tts_queue.get()),
+                asyncio.create_task(server_queue.get()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -54,10 +62,12 @@ async def process_events(
 
             if isinstance(event, STTEndEvent):
                 stt_handler.handle(event)
+            elif isinstance(event, TTSEvent):
+                await tts_handler.handle(event)
             elif isinstance(event, SocketAgentTextChunkEvent):
                 chunk_handler.handle(event)
             elif isinstance(event, SocketAgentTextEndEvent):
-                await end_handler.handle(event)
+                end_handler.handle(event)
 
         for task in pending:
             _ = task.cancel()
@@ -80,44 +90,49 @@ async def server_listener(
 
 async def start(whisper: WhisperSTT):
     stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
-    teacher_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
-    student_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
+    tts_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
+    text_queue: queue.Queue[str | None] = queue.Queue()
+    server_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
+    server_writers: dict[Role, asyncio.StreamWriter] = {}
 
-    # -------- SOCKET CONNECTIONS --------
-    teacher_reader, teacher_writer = await asyncio.open_connection(
-        config.TEACHER_SERVER_HOST, config.TEACHER_SERVER_PORT
-    )
-    student_reader, student_writer = await asyncio.open_connection(
-        config.STUDENT_SERVER_HOST, config.STUDENT_SERVER_PORT
-    )
-
-    # -------- TASKS --------
     user_task = asyncio.create_task(user_listener(whisper, stt_queue))
-    teacher_task = asyncio.create_task(server_listener(teacher_reader, teacher_queue))
-    student_task = asyncio.create_task(server_listener(student_reader, student_queue))
     process_events_task = asyncio.create_task(
         process_events(
-            stt_queue, teacher_queue, student_queue, teacher_writer, student_writer
+            stt_queue,
+            tts_queue,
+            text_queue,
+            server_queue,
+            server_writers,
         )
     )
 
+    async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        if len(server_writers) == 0:
+            role = Role.TEACHER
+        else:
+            role = Role.STUDENT
+
+        server_writers[role] = writer
+        server_task = asyncio.create_task(server_listener(reader, server_queue))
+
+        try:
+            _ = await server_task
+        except asyncio.CancelledError:
+            _ = server_task.cancel()
+        finally:
+            server_writers.pop(role, None)
+
+    server = await asyncio.start_server(handle, config.HOST, config.PORT)
+    print(f"TTC server listening on {config.HOST}:{config.PORT}")
+
     try:
-        _ = await asyncio.gather(
-            user_task,
-            teacher_task,
-            student_task,
-            process_events_task,
-        )
+        _ = await asyncio.gather(user_task, process_events_task, server.serve_forever())
     except asyncio.CancelledError:
         _ = user_task.cancel()
-        _ = teacher_task.cancel()
-        _ = student_task.cancel()
         _ = process_events_task.cancel()
 
 
 async def main():
-    import speech_recognition as sr
-
     parser = argparse.ArgumentParser(description="Turn Taking Controller Client")
     _ = parser.add_argument(
         "--model",
@@ -146,6 +161,12 @@ async def main():
         "--phrase_timeout",
         default=3,
         help="Silence duration (seconds) to consider as end of phrase",
+        type=float,
+    )
+    _ = parser.add_argument(
+        "--intervention_timeout",
+        default=5,
+        help="Maximum time (seconds) to wait for user intervention",
         type=float,
     )
     if "linux" in platform:

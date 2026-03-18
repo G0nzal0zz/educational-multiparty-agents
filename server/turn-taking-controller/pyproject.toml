@@ -1,0 +1,19 @@
+[project]
+name = "turn-taking-controller"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "chatterbox-tts>=0.1.6",
+    "openai-whisper>=20250625",
+    "shared-lib>=0.1.0",
+    "sounddevice>=0.5.5",
+    "onnx>=1.16.0,<1.19.0",
+    "SpeechRecognition>=3.8.0",
+    "PyAudio>=0.2.14",
+    "resemble-perth @ git+https://github.com/eschmidbauer/Perth.git"
+]
+
+[tool.uv.sources]
+shared-lib = { path = "../../lib", editable = true }

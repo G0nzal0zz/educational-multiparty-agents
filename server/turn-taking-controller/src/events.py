@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from shared_lib.events import now_ms
+from shared_lib.events import Role, now_ms
 
 
 @dataclass
@@ -51,3 +51,27 @@ class STTEndEvent:
 
 
 STTEvent = STTChunkEvent | STTEndEvent
+
+
+@dataclass
+class TTSEndEvent:
+    """
+    Event emitted when the TTS has finished playing some audio.
+
+    """
+
+    type: Literal["tts"]
+
+    role: Literal[Role.STUDENT, Role.TEACHER]
+    """Role of the speaker"""
+
+    ts: int
+    """Unix timestamp (milliseconds since epoch) when the event was created."""
+
+    @classmethod
+    def create(cls, role: Literal[Role.STUDENT, Role.TEACHER]) -> "TTSEndEvent":
+        """Factory method to create an TTSEndEvent with current timestamp."""
+        return cls(type="tts", role=role, ts=now_ms())
+
+
+TTSEvent = TTSEndEvent

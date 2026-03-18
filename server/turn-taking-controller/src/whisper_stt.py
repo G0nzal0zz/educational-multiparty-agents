@@ -23,7 +23,6 @@ class WhisperSTT:
     audio_model: whisper.Whisper
 
     def __init__(self, args: argparse.Namespace, source):
-        print("class source", source)
         # We use SpeechRecognizer to record our audio because it has a nice feature where it can detect when speech ends.
         self.recorder = sr.Recognizer()
         self.recorder.energy_threshold = args.energy_threshold
@@ -63,9 +62,7 @@ class WhisperSTT:
             loop.call_soon_threadsafe(data_queue.put_nowait, data)
 
         self.recorder.listen_in_background(
-            self.source,
-            record_callback,
-            intervention_time_limit=self.record_timeout,
+            self.source, record_callback, phrase_time_limit=self.record_timeout
         )
 
         transcription = [""]
@@ -75,13 +72,13 @@ class WhisperSTT:
             try:
                 data = await data_queue.get()
 
-                intervention_complete = False
+                intervention_completed = False
 
                 if intervention_time and now - intervention_time > timedelta(
                     seconds=self.intervention_timeout
                 ):
                     intervention_bytes = bytes()
-                    intervention_complete = True
+                    intervention_completed = True
 
                 intervention_time = now
                 intervention_bytes += data
@@ -98,13 +95,14 @@ class WhisperSTT:
                 )
 
                 text = str(result["text"]).strip()
-                print("STT text: ", text)
 
                 transcription.append(text)
                 if intervention_completed and text:
+                    print(f"Creating STTEndEvent {' '.join(map(str, transcription))}")
                     yield STTEndEvent.create(" ".join(map(str, transcription)))
                     transcription = [""]
                 else:
+                    print(f"Creating STTChunkEvent {text}")
                     yield STTChunkEvent.create(text)
 
             except asyncio.CancelledError:

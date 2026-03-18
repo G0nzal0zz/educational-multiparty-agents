@@ -74,34 +74,4 @@ type-safe handling of the various stages of agent response generation.
 """
 
 
-@dataclass
-class TTSChunkEvent:
-    """
-    Event emitted during text-to-speech synthesis for streaming audio chunks.
-
-    As the TTS service synthesizes speech, it streams audio incrementally.
-    These chunks enable real-time playback of the agent's response, allowing
-    audio to begin playing before the complete synthesis is finished, which
-    significantly improves perceived responsiveness.
-    """
-
-    type: Literal["tts_chunk"]
-
-    audio: bytes
-    """
-    PCM audio bytes synthesized from the agent's text response.
-    Format: 16-bit signed integer, mono channel, 24kHz sample rate.
-    Encoded as base64 when serialized to JSON for transmission.
-    Can be played immediately as it arrives for low-latency audio output.
-    """
-
-    ts: int
-    """Unix timestamp (milliseconds since epoch) when the event was created."""
-
-    @classmethod
-    def create(cls, audio: bytes) -> "TTSChunkEvent":
-        """Factory method to create a TTSChunkEvent event with current timestamp."""
-        return cls(type="tts_chunk", audio=audio, ts=now_ms())
-
-
-ServerEvent = AgentEvent | TTSChunkEvent
+ServerEvent = AgentEvent
