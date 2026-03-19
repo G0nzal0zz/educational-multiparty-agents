@@ -13,14 +13,16 @@ from shared_lib.events import (
 )
 from shared_lib.stream import read_event
 
+from chatterbox_tts import ChatterboxTTS
 from config import config
 from event_handlers import (
     AgentTextChunkHandler,
     AgentTextEndHandler,
-    STTEndEventHandler,
+    EventContext,
+    STTEventHandler,
     TTSEndEventHandler,
 )
-from events import STTEndEvent, STTEvent, TTSEvent
+from events import STTChunkEvent, STTEndEvent, STTEvent, TTSEndEvent, TTSEvent
 from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
 
@@ -28,27 +30,38 @@ HOST = "127.0.0.1"
 PORT = 9000
 
 
+HANDLERS = {
+    STTChunkEvent: STTEventHandler(),
+    STTEndEvent: STTEventHandler(),
+    TTSEndEvent: TTSEndEventHandler(),
+    SocketAgentTextChunkEvent: AgentTextChunkHandler(),
+    SocketAgentTextEndEvent: AgentTextEndHandler(),
+}
+
+
 async def process_events(
-    stt_queue: asyncio.Queue[STTEvent],
-    tts_queue: asyncio.Queue[TTSEvent],
-    text_queue: queue.Queue[str | None],
-    server_queue: asyncio.Queue[SocketServerEvent],
     server_writer: dict[Role, asyncio.StreamWriter],
+    server_event_queue: asyncio.Queue[SocketServerEvent],
+    stt_event_queue: asyncio.Queue[STTEvent],
+    tts_event_queue: asyncio.Queue[TTSEvent],
+    agent_chunk_event_queue: queue.Queue[str | None],
 ):
     turn_manager = TurnManager()
-
-    stt_handler = STTEndEventHandler(server_writer, turn_manager)
-    tts_handler = TTSEndEventHandler(turn_manager, tts_queue)
-
-    chunk_handler = AgentTextChunkHandler(turn_manager, tts_queue, text_queue)
-    end_handler = AgentTextEndHandler(server_writer, turn_manager, text_queue)
+    tts = ChatterboxTTS(tts_event_queue, agent_chunk_event_queue)
+    context = EventContext(
+        turn_manager=turn_manager,
+        server_writers=server_writer,
+        tts=tts,
+        stt_event_queue=stt_event_queue,
+        agents_chunk_event_queue=agent_chunk_event_queue,
+    )
 
     while True:
         done, pending = await asyncio.wait(
             [
-                asyncio.create_task(stt_queue.get()),
-                asyncio.create_task(tts_queue.get()),
-                asyncio.create_task(server_queue.get()),
+                asyncio.create_task(stt_event_queue.get()),
+                asyncio.create_task(tts_event_queue.get()),
+                asyncio.create_task(server_event_queue.get()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
         )
@@ -57,17 +70,13 @@ async def process_events(
             try:
                 event = task.result()
             except asyncio.CancelledError:
-                # TODO: Log exception
                 continue
 
-            if isinstance(event, STTEndEvent):
-                stt_handler.handle(event)
-            elif isinstance(event, TTSEvent):
-                await tts_handler.handle(event)
-            elif isinstance(event, SocketAgentTextChunkEvent):
-                chunk_handler.handle(event)
-            elif isinstance(event, SocketAgentTextEndEvent):
-                end_handler.handle(event)
+            handler = HANDLERS.get(type(event))
+            if handler:
+                result = handler.handle(event, context)
+                if asyncio.iscoroutine(result):
+                    await result
 
         for task in pending:
             _ = task.cancel()
@@ -89,20 +98,20 @@ async def server_listener(
 
 
 async def start(whisper: WhisperSTT):
-    stt_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
-    tts_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
-    text_queue: queue.Queue[str | None] = queue.Queue()
-    server_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
+    stt_event_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
+    tts_event_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
+    agents_chunk_event_queue: queue.Queue[str | None] = queue.Queue()
+    server_event_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
     server_writers: dict[Role, asyncio.StreamWriter] = {}
 
-    user_task = asyncio.create_task(user_listener(whisper, stt_queue))
+    user_task = asyncio.create_task(user_listener(whisper, stt_event_queue))
     process_events_task = asyncio.create_task(
         process_events(
-            stt_queue,
-            tts_queue,
-            text_queue,
-            server_queue,
             server_writers,
+            server_event_queue,
+            stt_event_queue,
+            tts_event_queue,
+            agents_chunk_event_queue,
         )
     )
 
@@ -113,7 +122,7 @@ async def start(whisper: WhisperSTT):
             role = Role.STUDENT
 
         server_writers[role] = writer
-        server_task = asyncio.create_task(server_listener(reader, server_queue))
+        server_task = asyncio.create_task(server_listener(reader, server_event_queue))
 
         try:
             _ = await server_task
@@ -167,7 +176,7 @@ async def main():
         "--intervention_timeout",
         default=5,
         help="Maximum time (seconds) to wait for user intervention",
-        type=float,
+        type=int,
     )
     if "linux" in platform:
         _ = parser.add_argument(

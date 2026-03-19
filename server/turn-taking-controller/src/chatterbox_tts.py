@@ -32,7 +32,7 @@ class ChatterboxTTS:
     text_queue: queue.Queue[str | None]
     model: ChatterboxTurboTTS
 
-    audio_thread_stop: bool
+    audio_player_stop: bool
 
     def __init__(
         self, tts_queue: asyncio.Queue[TTSEndEvent], text_queue: queue.Queue[str | None]
@@ -43,7 +43,7 @@ class ChatterboxTTS:
         self.model = ChatterboxTurboTTS.from_pretrained(device=device)
 
         self.audio_thread = None
-        self.audio_thread_stop = False
+        self.audio_player_stop = False
 
     def play_audio_chunk(self, audio_chunk, sample_rate):
         """Play audio chunk using sounddevice with proper sequencing"""
@@ -60,7 +60,7 @@ class ChatterboxTTS:
         while True:
             try:
                 audio_chunk = audio_queue.get(timeout=1.0)
-                if audio_chunk is None or self.audio_thread_stop:  # Sentinel to stop
+                if audio_chunk is None or self.audio_player_stop:  # Sentinel to stop
                     break
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
@@ -75,7 +75,7 @@ class ChatterboxTTS:
             return
 
         print("Stopping audio player")
-        self.audio_thread_stop = True
+        self.audio_player_stop = True
 
     def start(
         self, role: Literal[Role.TEACHER, Role.STUDENT], loop: asyncio.AbstractEventLoop
@@ -87,7 +87,7 @@ class ChatterboxTTS:
         )
         self.audio_thread.daemon = True
         self.audio_thread.start()
-        self.audio_thread_stop = False
+        self.audio_player_stop = False
 
         while True:
             try:
