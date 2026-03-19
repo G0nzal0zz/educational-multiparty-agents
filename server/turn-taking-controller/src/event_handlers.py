@@ -3,12 +3,9 @@ import queue
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
-from shared_lib.events import (
-    Role,
-    SocketAgentTextChunkEvent,
-    SocketAgentTextEndEvent,
-    SocketHumanTranscription,
-)
+from shared_lib.events import (Role, SocketAgentTextChunkEvent,
+                               SocketAgentTextEndEvent,
+                               SocketHumanTranscription)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS

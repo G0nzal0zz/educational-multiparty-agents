@@ -7,15 +7,11 @@ from client_lib.handler import ClientHandler
 from client_lib.ollama_llm import OLlamaLLM
 from client_lib.prompts import TTS_SYSTEM_PROMPT
 from langchain_core.runnables import RunnableGenerator
-from shared_lib.events import (
-    Role,
-    SocketAgentTextChunkEvent,
-    SocketAgentTextEndEvent,
-    SocketClientEvent,
-    SocketEvent,
-    SocketHumanTranscription,
-    SocketServerEvent,
-)
+from shared_lib.events import (Role, SocketAgentTextChunkEvent,
+                               SocketAgentTextEndEvent, SocketClientEvent,
+                               SocketEvent, SocketHumanTranscription,
+                               SocketServerEvent,
+                               SocketTeacherStartTeachingEvent)
 
 system_prompt = f"""
 You are a helpful teacher. Your goal is to teach about a topic to some students.
@@ -57,6 +53,16 @@ async def _ollama_agent_stream(
             event = await pending.get()
             if event is None:
                 break
+
+            # TODO: Change this
+            if isinstance(event, SocketTeacherStartTeachingEvent):
+                async for chunk in agent.generate_response("Teach me the Spanish Empire"):
+                    if cancelled.is_set():
+                        print("Turn cancelled, aborting generation")
+                        break
+                    print(f"Sending AgentChunkEvent {chunk}")
+                    yield chunk
+                yield AgentEndEvent.create()
 
             if not isinstance(event, SocketHumanTranscription):
                 print(f"WARNING: Received unexpected event type: {type(event)}")
