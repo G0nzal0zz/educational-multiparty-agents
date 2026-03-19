@@ -32,6 +32,8 @@ class ChatterboxTTS:
     text_queue: queue.Queue[str | None]
     model: ChatterboxTurboTTS
 
+    audio_thread_stop: bool
+
     def __init__(
         self, tts_queue: asyncio.Queue[TTSEndEvent], text_queue: queue.Queue[str | None]
     ):
@@ -39,6 +41,9 @@ class ChatterboxTTS:
         self.text_queue = text_queue
 
         self.model = ChatterboxTurboTTS.from_pretrained(device=device)
+
+        self.audio_thread = None
+        self.audio_thread_stop = False
 
     def play_audio_chunk(self, audio_chunk, sample_rate):
         """Play audio chunk using sounddevice with proper sequencing"""
@@ -55,7 +60,7 @@ class ChatterboxTTS:
         while True:
             try:
                 audio_chunk = audio_queue.get(timeout=1.0)
-                if audio_chunk is None:  # Sentinel to stop
+                if audio_chunk is None or self.audio_thread_stop:  # Sentinel to stop
                     break
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
@@ -64,18 +69,25 @@ class ChatterboxTTS:
             except Exception as e:
                 print(f"Audio player error: {e}")
 
+    def stop_audio_player(self):
+        if self.audio_thread is None or self.audio_thread.is_alive() is False:
+            print("Can't stop audio player since it isn't running")
+            return
+
+        print("Stopping audio player")
+        self.audio_thread_stop = True
+
     def start(
         self, role: Literal[Role.TEACHER, Role.STUDENT], loop: asyncio.AbstractEventLoop
     ):
-        chunk_count = 0
-
         # Setup audio playback queue and thread
         audio_queue = queue.Queue()
-        audio_thread = threading.Thread(
+        self.audio_thread = threading.Thread(
             target=self.audio_player_worker, args=(audio_queue, self.model.sr)
         )
-        audio_thread.daemon = True
-        audio_thread.start()
+        self.audio_thread.daemon = True
+        self.audio_thread.start()
+        self.audio_thread_stop = False
 
         while True:
             try:
@@ -87,7 +99,6 @@ class ChatterboxTTS:
                 text_chunk = self.text_queue.get()
 
                 if text_chunk is None:
-                    print("STOPING CHATTERBOX LOOP")
                     break
 
                 initial_time = time.time()
@@ -98,31 +109,19 @@ class ChatterboxTTS:
                     cfg_weight=0.5,
                 ):
                     print(f"Chunk time = {time.time() - initial_time}")
-                    chunk_count += 1
 
                     # Queue audio for immediate playback
                     audio_queue.put(audio_chunk.clone())
 
-                    # chunk_duration = audio_chunk.shape[-1] / model.sr
-                    # print(
-                    #     f"Received chunk {chunk_count}, shape: {audio_chunk.shape}, duration: {chunk_duration:.3f}s"
-                    # )
-
-                    if chunk_count == 1:
-                        print("Audio playback started!")
-
-            except KeyboardInterrupt:
-                print("\nPlayback interrupted by user")
             except Exception as e:
                 print(f"Error during streaming generation: {e}")
-                import traceback
-
-                traceback.print_exc()
 
         print("Chatterbox finished generating audio")
         audio_queue.join()  # Wait for all audio to finish playing
         audio_queue.put(None)  # Sentinel to stop thread
+
         print("Audio finished playing")
+        self.audio_thread = None
         _ = asyncio.run_coroutine_threadsafe(
             self.tts_queue.put(TTSEndEvent.create(role)), loop
         )
