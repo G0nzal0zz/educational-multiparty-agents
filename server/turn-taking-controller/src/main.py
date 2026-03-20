@@ -4,23 +4,28 @@ import queue
 from sys import platform
 
 import speech_recognition as sr
-from shared_lib.events import (Role, SocketAgentTextChunkEvent,
-                               SocketAgentTextEndEvent, SocketClientEvent,
-                               SocketServerEvent,
-                               SocketTeacherStartTeachingEvent)
+from shared_lib.events import (
+    Role,
+    SocketAgentTextChunkEvent,
+    SocketAgentTextEndEvent,
+    SocketClientEvent,
+    SocketServerEvent,
+    SocketTeacherStartEvent,
+)
 from shared_lib.stream import read_event, write_event
 
 from chatterbox_tts import ChatterboxTTS
 from config import config
-from event_handlers import (AgentTextChunkHandler, AgentTextEndHandler,
-                            EventContext, STTEventHandler, TTSEndEventHandler)
+from event_handlers import (
+    AgentTextChunkHandler,
+    AgentTextEndHandler,
+    EventContext,
+    STTEventHandler,
+    TTSEndEventHandler,
+)
 from events import STTChunkEvent, STTEndEvent, STTEvent, TTSEndEvent, TTSEvent
 from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
-
-HOST = "0.0.0.0"
-PORT = 9000
-
 
 HANDLERS = {
     STTChunkEvent: STTEventHandler(),
@@ -116,7 +121,7 @@ async def start(whisper: WhisperSTT):
         nonlocal count
         count = count + 1
         if count == 2:
-            write_event(server_writers[Role.TEACHER], SocketTeacherStartTeachingEvent.create())
+            write_event(server_writers[Role.TEACHER], SocketTeacherStartEvent.create())
 
         server_writers[role] = writer
         server_task = asyncio.create_task(server_listener(reader, server_event_queue))

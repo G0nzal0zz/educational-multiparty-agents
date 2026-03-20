@@ -15,7 +15,7 @@ from shared_lib.events import (
     SocketEvent,
     SocketHumanTranscription,
     SocketServerEvent,
-    SocketTeacherStartTeachingEvent,
+    SocketTeacherStartEvent,
 )
 
 system_prompt = f"""
@@ -60,7 +60,7 @@ async def _ollama_agent_stream(
                 break
 
             # TODO: Change this
-            if isinstance(event, SocketTeacherStartTeachingEvent):
+            if isinstance(event, SocketTeacherStartEvent):
                 async for chunk in agent.generate_response(
                     "Teach me the Spanish Empire"
                 ):
