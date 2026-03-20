@@ -100,9 +100,31 @@ class SocketAgentTextEndEvent:
         return cls(type="agent_text_end", role=role, ts=now_ms())
 
 
+@dataclass
+class SocketTeacherStartEvent:
+    """
+    Event emitted when an agent has finished generating text.
+
+    This event implies that the agent has finished sending events of type agent_chunk_event and the TTC
+    shouldn't be waiting for more.
+
+    Sent from server to client.
+    """
+
+    type: Literal["teacher_start_teaching"]
+
+    ts: int
+    """Unix timestamp (milliseconds since epoch) when the event was created."""
+
+    @classmethod
+    def create(cls) -> "SocketTeacherStartEvent":
+        """Factory method to create an SocketTeacherStartEvent with current timestamp."""
+        return cls(type="teacher_start_teaching", ts=now_ms())
+
+
 # Union types for type-safe event handling
 
-SocketClientEvent = SocketHumanTranscription
+SocketClientEvent = SocketHumanTranscription | SocketTeacherStartEvent
 """Events sent from the turn-taking controller (client) to the server."""
 
 SocketServerEvent = SocketAgentTextChunkEvent | SocketAgentTextEndEvent
@@ -117,6 +139,11 @@ def event_to_dict(event: SocketEvent) -> dict:
         return {
             "type": event.type,
             "text": event.text,
+            "ts": event.ts,
+        }
+    elif isinstance(event, SocketTeacherStartEvent):
+        return {
+            "type": event.type,
             "ts": event.ts,
         }
     elif isinstance(event, SocketAgentTextChunkEvent):
@@ -155,6 +182,9 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
         return SocketHumanTranscription(
             type=event_type, text=data.get("text", ""), ts=data.get("ts", now_ms())
         )
+
+    elif event_type == "teacher_start_teaching":
+        return SocketTeacherStartEvent(type=event_type, ts=data.get("ts", now_ms()))
 
     elif event_type == "agent_text_chunk":
         role_value = data.get("role", Role.TEACHER.value)

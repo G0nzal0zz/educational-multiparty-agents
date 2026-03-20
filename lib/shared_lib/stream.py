@@ -1,12 +1,8 @@
 import asyncio
 import json
 
-from shared_lib.events import (
-    SocketEvent,
-    SocketServerEvent,
-    bytes_to_event,
-    event_to_dict,
-)
+from shared_lib.events import (SocketEvent, SocketServerEvent, bytes_to_event,
+                               event_to_dict)
 
 
 def write_event(writer: asyncio.StreamWriter, event: SocketEvent) -> None:
