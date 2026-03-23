@@ -12,7 +12,7 @@ class Turn(Enum):
 
 class TurnManager:
     def __init__(self):
-        self._current_turn: Turn = Turn.IDLE
+        self._current_turn: Turn = Turn.TEACHER
 
     @property
     def current_turn(self) -> Turn:
