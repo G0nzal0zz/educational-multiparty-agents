@@ -70,7 +70,9 @@ async def _ollama_agent_stream(
 
             if isinstance(event, SocketAgentTurnEvent):
                 if first_turn:
-                    current_task = asyncio.create_task(generate_output(""))
+                    current_task = asyncio.create_task(
+                        generate_output("Teach something about the Spanish Empire.")
+                    )
                     first_turn = False
 
                 while True:

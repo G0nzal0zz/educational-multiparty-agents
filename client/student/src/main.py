@@ -22,12 +22,12 @@ from shared_lib.stream import read_event, write_event
 from student_state import StudentState
 
 TEACHER_PROMPT = """
-The teacher will be teaching about the Spanish Empire. 
+The teacher will be teaching about the Spanish Empire.
 The learning objectives for this lesson are:
 1. Understand how Spain built the first global empire
 2. Analyse the political, economic and religious drivers of expansion
 3. Evaluate the impact on indigenous peoples and colonised societies
-4. Trace the causes of Spanish imperial decline 
+4. Trace the causes of Spanish imperial decline
 The Syllabus and flow of the lesson is as follows:
 1. Context & foundations of expansion
 2. Conquest & the empire at its height
@@ -117,6 +117,7 @@ async def _generate_text(llm: OLlamaLLM, prompt: str) -> str:
             collected.append(event.text)
     return "".join(collected).strip()
 
+
 async def _stream_text_as_events(
     text: str,
     role: Role,
@@ -139,16 +140,13 @@ def handle_teacher_end(
     output_queue: asyncio.Queue[AgentEvent],
 ) -> None:
     async def add_output_to_queue():
-        trancripts = _build_lesson_context(state) 
-        async for ste in agent.generate_response(f"Based on the teacher's last statements,{trancripts}, ask one short clarifying question that would help the human student understand better."):
+        trancripts = _build_lesson_context(state)
+        async for ste in agent.generate_response(
+            f"Based on the teacher's last statements,{trancripts}, ask one short clarifying question that would help the human student understand better."
+        ):
             await output_queue.put(ste)
 
-    task = None
-    try:
-        task = asyncio.create_task(add_output_to_queue())
-    finally:
-        if task:
-            _ = task.cancel()
+    asyncio.create_task(add_output_to_queue())
 
     # preventive_prompt = _build_preventive_prompt(state)
     # preventive_text = await _generate_text(preventive_agent, preventive_prompt)
@@ -168,7 +166,6 @@ async def handle_agent_turn(
 ) -> None:
     while True:
         agent_event = await output_queue.get()
-
         await asyncio.sleep(0.1)  # small delay to avoid flooding (optional)
         if isinstance(agent_event, AgentEndEvent):
             event = SocketAgentTextEndEvent.create(Role.STUDENT)
