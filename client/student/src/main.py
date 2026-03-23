@@ -140,7 +140,7 @@ def handle_teacher_end(
 ) -> None:
     async def add_output_to_queue():
         trancripts = _build_lesson_context(state) 
-        async for ste in agent.generate_response("Based on the teacher's last statement, ask one short clarifying question that would help the human student understand better."):
+        async for ste in agent.generate_response(f"Based on the teacher's last statements,{trancripts}, ask one short clarifying question that would help the human student understand better."):
             await output_queue.put(ste)
 
     task = None
