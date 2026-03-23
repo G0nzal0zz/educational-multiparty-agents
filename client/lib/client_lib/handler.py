@@ -42,6 +42,7 @@ class ClientHandler:
 
                 writer.write(json_data.encode())
                 await writer.drain()
+                await asyncio.sleep(0.1)  # small delay to avoid flooding
 
         except asyncio.CancelledError:
             raise

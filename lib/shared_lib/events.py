@@ -101,30 +101,30 @@ class SocketAgentTextEndEvent:
 
 
 @dataclass
-class SocketTeacherStartEvent:
+class SocketAgentTurnEvent:
     """
-    Event emitted when an agent has finished generating text.
+    Event sent to an agent to signal that it is their turn to act.
 
-    This event implies that the agent has finished sending events of type agent_chunk_event and the TTC
-    shouldn't be waiting for more.
+    Upon receiving this event, the agent should begin generating and sending
+    `agent_text_chunk` messages as part of its response.
 
-    Sent from server to client.
+    This event is sent from the server to the client.
     """
 
-    type: Literal["teacher_start_teaching"]
+    type: Literal["agent_turn"]
 
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
-    def create(cls) -> "SocketTeacherStartEvent":
-        """Factory method to create an SocketTeacherStartEvent with current timestamp."""
-        return cls(type="teacher_start_teaching", ts=now_ms())
+    def create(cls) -> "SocketAgentTurnEvent":
+        """Factory method to create an SocketAgentTurnEvent with current timestamp."""
+        return cls(type="agent_turn", ts=now_ms())
 
 
 # Union types for type-safe event handling
 
-SocketClientEvent = SocketHumanTranscription | SocketTeacherStartEvent
+SocketClientEvent = SocketHumanTranscription | SocketAgentTurnEvent
 """Events sent from the turn-taking controller (client) to the server."""
 
 SocketServerEvent = SocketAgentTextChunkEvent | SocketAgentTextEndEvent
@@ -141,7 +141,7 @@ def event_to_dict(event: SocketEvent) -> dict:
             "text": event.text,
             "ts": event.ts,
         }
-    elif isinstance(event, SocketTeacherStartEvent):
+    elif isinstance(event, SocketAgentTurnEvent):
         return {
             "type": event.type,
             "ts": event.ts,
@@ -183,8 +183,8 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
             type=event_type, text=data.get("text", ""), ts=data.get("ts", now_ms())
         )
 
-    elif event_type == "teacher_start_teaching":
-        return SocketTeacherStartEvent(type=event_type, ts=data.get("ts", now_ms()))
+    elif event_type == "agent_turn":
+        return SocketAgentTurnEvent(type=event_type, ts=data.get("ts", now_ms()))
 
     elif event_type == "agent_text_chunk":
         role_value = data.get("role", Role.TEACHER.value)

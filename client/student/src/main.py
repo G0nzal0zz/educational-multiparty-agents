@@ -3,20 +3,21 @@ import json
 from collections.abc import AsyncIterator
 
 from client_lib.config import config
+from client_lib.events import AgentChunkEvent, AgentEndEvent, AgentEvent
 from client_lib.ollama_llm import OLlamaLLM
 from client_lib.prompts import TTS_SYSTEM_PROMPT
 from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
-    SocketAgentTextEndEvent,
+    SocketAgentTurnEvent,
     SocketEvent,
     SocketHumanTranscription,
     SocketServerEvent,
     bytes_to_event,
     event_to_dict,
 )
-from shared_lib.stream import read_event
+from shared_lib.stream import read_event, write_event
 
 from student_state import StudentState
 
@@ -73,8 +74,9 @@ def _build_question_prompt(state: StudentState) -> str:
         )
     already_asked = ""
     if state.questions_asked:
-        already_asked = "\n\nQuestions you have already asked (do not repeat): " + "; ".join(
-            state.questions_asked[-5:]
+        already_asked = (
+            "\n\nQuestions you have already asked (do not repeat): "
+            + "; ".join(state.questions_asked[-5:])
         )
     return (
         f"{context}{human_note}{already_asked}\n\n"
@@ -116,23 +118,49 @@ async def _stream_text_as_events(
     await writer.drain()
 
 
-async def handle_teacher_end(
+def handle_teacher_end(
     state: StudentState,
     writer: asyncio.StreamWriter,
+    output_queue: asyncio.Queue[AgentEvent],
 ) -> None:
-    preventive_prompt = _build_preventive_prompt(state)
-    preventive_text = await _generate_text(preventive_agent, preventive_prompt)
+    async def add_output_to_queue():
+        # TODO: Use what the teacher said to generate student's answer
+        async for ste in agent.generate_response("Teacher explained something"):
+            await output_queue.put(ste)
 
-    question_prompt = _build_question_prompt(state)
-    question_task = asyncio.create_task(
-        _generate_text(agent, question_prompt)
-    )
+    task = None
+    try:
+        task = asyncio.create_task(add_output_to_queue())
+    finally:
+        if task:
+            _ = task.cancel()
 
-    await _stream_text_as_events(preventive_text, Role.STUDENT, writer)
+    # preventive_prompt = _build_preventive_prompt(state)
+    # preventive_text = await _generate_text(preventive_agent, preventive_prompt)
+    #
+    # question_prompt = _build_question_prompt(state)
+    # question_task = asyncio.create_task(_generate_text(agent, question_prompt))
+    #
+    # await _stream_text_as_events(preventive_text, Role.STUDENT, writer)
+    #
+    # question_text = await question_task
+    # state.questions_asked.append(question_text)
+    # await _stream_text_as_events(question_text, Role.STUDENT, writer)
 
-    question_text = await question_task
-    state.questions_asked.append(question_text)
-    await _stream_text_as_events(question_text, Role.STUDENT, writer)
+
+async def handle_agent_turn(
+    writer: asyncio.StreamWriter, output_queue: asyncio.Queue[AgentEvent]
+) -> None:
+    while True:
+        agent_event = await output_queue.get()
+
+        await asyncio.sleep(0.1)  # small delay to avoid flooding (optional)
+        if isinstance(agent_event, AgentEndEvent):
+            event = SocketAgentTextEndEvent.create(Role.STUDENT)
+            write_event(writer, event)
+            break
+        event = SocketAgentTextChunkEvent.create(agent_event.text, role=Role.STUDENT)
+        write_event(writer, event)
 
 
 async def event_loop(
@@ -140,19 +168,23 @@ async def event_loop(
     writer: asyncio.StreamWriter,
 ) -> None:
     state = StudentState()
+    output_queue: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
     async for event in read_event(reader):
         print(f"Student received event: {event}")
 
-        if isinstance(event, SocketAgentTextChunkEvent) and event.role == Role.TEACHER:
+        if isinstance(event, SocketAgentTextChunkEvent):
             state.append_transcript("Teacher", event.text)
 
-        elif isinstance(event, SocketAgentTextEndEvent) and event.role == Role.TEACHER:
-            await handle_teacher_end(state, writer)
+        elif isinstance(event, SocketAgentTextEndEvent):
+            handle_teacher_end(state, writer, output_queue)
 
         elif isinstance(event, SocketHumanTranscription):
             state.append_transcript("Human student", event.text)
             state.note_human_input(event.text)
+
+        elif isinstance(event, SocketAgentTurnEvent):
+            await handle_agent_turn(writer, output_queue)
 
         else:
             print(f"Student: unhandled event type {type(event)}")

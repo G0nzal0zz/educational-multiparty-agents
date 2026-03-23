@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator
 
 from client_lib.config import config
-from client_lib.events import AgentChunkEvent, AgentEndEvent, ServerEvent
+from client_lib.events import AgentChunkEvent, AgentEndEvent, AgentEvent, ServerEvent
 from client_lib.handler import ClientHandler
 from client_lib.ollama_llm import OLlamaLLM
 from client_lib.prompts import TTS_SYSTEM_PROMPT
@@ -11,11 +11,11 @@ from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
+    SocketAgentTurnEvent,
     SocketClientEvent,
     SocketEvent,
     SocketHumanTranscription,
     SocketServerEvent,
-    SocketTeacherStartEvent,
 )
 
 system_prompt = f"""
@@ -39,8 +39,8 @@ async def _ollama_agent_stream(
     can interrupt an in-progress LLM generation between chunks.
     """
 
-    cancelled = asyncio.Event()
     pending: asyncio.Queue[SocketEvent | None] = asyncio.Queue()
+    output: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
     async def _feed_events():
         """Continuously read client events into a queue, flagging cancellations."""
@@ -53,40 +53,54 @@ async def _ollama_agent_stream(
 
     feeder = asyncio.create_task(_feed_events())
 
+    first_turn = True
+    count = 0
+
+    async def generate_output(message: str):
+        async for chunk in agent.generate_response(message):
+            await output.put(chunk)
+
+    current_task = None
+
     try:
         while True:
             event = await pending.get()
             if event is None:
                 break
 
-            # TODO: Change this
-            if isinstance(event, SocketTeacherStartEvent):
-                async for chunk in agent.generate_response(
-                    "Teach me the Spanish Empire"
-                ):
-                    if cancelled.is_set():
-                        print("Turn cancelled, aborting generation")
+            if isinstance(event, SocketAgentTurnEvent):
+                if first_turn:
+                    current_task = asyncio.create_task(generate_output(""))
+                    first_turn = False
+
+                while True:
+                    agent_event = await output.get()
+
+                    if isinstance(agent_event, AgentEndEvent):
                         break
-                    print(f"Sending AgentChunkEvent {chunk}")
-                    yield chunk
+
+                    print(f"Sending AgentChunkEvent {agent_event}")
+                    yield agent_event
+
                 yield AgentEndEvent.create()
 
-            if not isinstance(event, SocketHumanTranscription):
+            elif isinstance(event, SocketHumanTranscription):
+                # start generation without blocking
+                current_task = asyncio.create_task(generate_output(event.text))
+
+            elif isinstance(event, SocketAgentTextEndEvent):
+                current_task = asyncio.create_task(
+                    generate_output("Student asked a question...")
+                )
+
+            else:
                 print(f"WARNING: Received unexpected event type: {type(event)}")
-                continue
 
-            cancelled.clear()
-            async for chunk in agent.generate_response(event.text):
-                if cancelled.is_set():
-                    print("Turn cancelled, aborting generation")
-                    break
-                print(f"Sending AgentChunkEvent {chunk}")
-                yield chunk
-
-            # Always emit AgentEndEvent so downstream stages flush their buffers
-            yield AgentEndEvent.create()
     finally:
-        feeder.cancel()
+        if current_task:
+            current_task.cancel()
+
+        _ = feeder.cancel()
         try:
             await feeder
         except asyncio.CancelledError:

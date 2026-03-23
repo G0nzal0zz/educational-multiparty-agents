@@ -3,9 +3,13 @@ import queue
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
-from shared_lib.events import (Role, SocketAgentTextChunkEvent,
-                               SocketAgentTextEndEvent,
-                               SocketHumanTranscription)
+from shared_lib.events import (
+    Role,
+    SocketAgentTextChunkEvent,
+    SocketAgentTextEndEvent,
+    SocketAgentTurnEvent,
+    SocketHumanTranscription,
+)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
@@ -58,8 +62,11 @@ class STTEventHandler:
 
     def _handle_end_event(self, event: STTEndEvent, context: EventContext):
         human_event = SocketHumanTranscription.create(event.transcript)
+        turn_event = SocketAgentTurnEvent.create()
 
         write_event(context.server_writers[Role.TEACHER], human_event)
+        write_event(context.server_writers[Role.TEACHER], turn_event)
+
         write_event(context.server_writers[Role.STUDENT], human_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
@@ -69,6 +76,7 @@ class TTSEndEventHandler:
     def handle(
         self, event: TTSEndEvent, context: EventContext
     ) -> Awaitable[None] | None:
+        print(f"TTS finsished: {event}")
         if event.role == Role.TEACHER:
             return self._handle_teacher_end(context)
         elif event.role == Role.STUDENT:
@@ -95,7 +103,10 @@ class TTSEndEventHandler:
             context.turn_manager.set_turn(Turn.HUMAN)
             print("Teacher finished speaking. Setting TURN to HUMAN")
 
+        turn_event = SocketAgentTurnEvent.create()
+
         context.turn_manager.set_turn(Turn.STUDENT)
+        write_event(context.server_writers[Role.STUDENT], turn_event)
         print("Teacher finished speaking. Setting TURN to STUDENT")
 
     def _handle_student_end(self, context: EventContext) -> None:
@@ -103,7 +114,10 @@ class TTSEndEventHandler:
             print("Student finished speaking but it was not his turn.")
             return
 
+        turn_event = SocketAgentTurnEvent.create()
+
         context.turn_manager.set_turn(Turn.TEACHER)
+        write_event(context.server_writers[Role.TEACHER], turn_event)
         print("Student finished speaking. Setting TURN to TEACHER")
 
 
@@ -118,18 +132,6 @@ class AgentTextChunkHandler:
     async def handle(
         self, event: SocketAgentTextChunkEvent, context: EventContext
     ) -> None:
-        # If Turn is set to IDLE, is because we are waiting for the human to talk.
-        # Meaning, that if the human doesn't talk, we should let the agent speak.
-        if context.turn_manager.current_turn == Turn.IDLE:
-            print("Waiting for the human to speak before playing agent audio")
-            # Waiting at most config.USER_TURN_TIMEOUT for the user to speak.
-            _ = await poll_callback(
-                config.USER_TURN_TIMEOUT,
-                0.1,
-                self._turn_has_changed,
-                context.turn_manager,
-            )
-
         if not context.turn_manager.is_role_turn(event.role):
             print(
                 f"Received SocketAgentTextChunkEvent, but audio couldn't be reproduced. "
@@ -162,27 +164,10 @@ class AgentTextChunkHandler:
 
 class AgentTextEndHandler:
     def handle(self, event: SocketAgentTextEndEvent, context: EventContext) -> None:
-        if event.role == Role.TEACHER:
-            self._handle_teacher_end(event, context)
-        elif event.role == Role.STUDENT:
-            self._handle_student_end(event, context)
-
-    def _handle_teacher_end(
-        self, event: SocketAgentTextEndEvent, context: EventContext
-    ) -> None:
-        if context.turn_manager.current_turn != Turn.TEACHER:
-            print("Teacher finished STREAMING text but it was not his turn.")
+        if not context.turn_manager.is_role_turn(event.role):
+            print(f"{event.role.name} finished STREAMING text but it was not his turn.")
             return
 
         context.agents_chunk_event_queue.put(None)
-        write_event(context.server_writers[Role.STUDENT], event)
-
-    def _handle_student_end(
-        self, event: SocketAgentTextEndEvent, context: EventContext
-    ) -> None:
-        if context.turn_manager.current_turn != Turn.STUDENT:
-            print("Student finished STREAMING text but it was not his turn.")
-            return
-
-        context.agents_chunk_event_queue.put(None)
-        write_event(context.server_writers[Role.TEACHER], event)
+        writer_role = Role.TEACHER if event.role == Role.STUDENT else Role.STUDENT
+        write_event(context.server_writers[writer_role], event)

@@ -8,9 +8,9 @@ from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
+    SocketAgentTurnEvent,
     SocketClientEvent,
     SocketServerEvent,
-    SocketTeacherStartEvent,
 )
 from shared_lib.stream import read_event, write_event
 
@@ -68,6 +68,7 @@ async def process_events(
                 event = task.result()
             except asyncio.CancelledError:
                 continue
+            print(f"Received event: {event}")
 
             handler = HANDLERS.get(type(event))
             if handler:
@@ -121,7 +122,7 @@ async def start(whisper: WhisperSTT):
         nonlocal count
         count = count + 1
         if count == 2:
-            write_event(server_writers[Role.TEACHER], SocketTeacherStartEvent.create())
+            write_event(server_writers[Role.TEACHER], SocketAgentTurnEvent.create())
 
         server_writers[role] = writer
         server_task = asyncio.create_task(server_listener(reader, server_event_queue))
