@@ -139,8 +139,8 @@ def handle_teacher_end(
     output_queue: asyncio.Queue[AgentEvent],
 ) -> None:
     async def add_output_to_queue():
-        # TODO: Use what the teacher said to generate student's answer
-        async for ste in agent.generate_response("Teacher explained something"):
+        trancripts = _build_lesson_context(state) 
+        async for ste in agent.generate_response("Based on the teacher's last statement, ask one short clarifying question that would help the human student understand better."):
             await output_queue.put(ste)
 
     task = None
