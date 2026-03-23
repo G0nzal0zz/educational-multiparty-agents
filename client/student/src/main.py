@@ -21,6 +21,21 @@ from shared_lib.stream import read_event, write_event
 
 from student_state import StudentState
 
+TEACHER_PROMPT = """
+The teacher will be teaching about the Spanish Empire. 
+The learning objectives for this lesson are:
+1. Understand how Spain built the first global empire
+2. Analyse the political, economic and religious drivers of expansion
+3. Evaluate the impact on indigenous peoples and colonised societies
+4. Trace the causes of Spanish imperial decline 
+The Syllabus and flow of the lesson is as follows:
+1. Context & foundations of expansion
+2. Conquest & the empire at its height
+3. Administration & colonial society
+4. Decline & collapse
+5. Legacy & reflection
+""".strip()
+
 STUDENT_SYSTEM_PROMPT = f"""
 You are a curious and engaged student attending a lesson given by a teacher. \
 Another human student is also attending the lesson alongside you.
@@ -28,7 +43,8 @@ Another human student is also attending the lesson alongside you.
 Your role is to ask clarifying questions that help the human student understand the material better. \
 Your questions should reflect the human student's level of understanding. \
 You will be informed when the human student speaks, and you must adapt your future questions \
-to match the vocabulary, depth, and pace that suits that student.
+to match the vocabulary, depth, and pace that suits that student. \
+For context about the teacher and the lesson, {TEACHER_PROMPT}  \
 
 When formulating questions:
 - Focus on concepts that were potentially confusing or under-explained.
@@ -100,7 +116,6 @@ async def _generate_text(llm: OLlamaLLM, prompt: str) -> str:
         if hasattr(event, "text"):
             collected.append(event.text)
     return "".join(collected).strip()
-
 
 async def _stream_text_as_events(
     text: str,
