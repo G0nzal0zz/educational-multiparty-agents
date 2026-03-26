@@ -164,6 +164,7 @@ class AgentTextChunkHandler:
 
 class AgentTextEndHandler:
     def handle(self, event: SocketAgentTextEndEvent, context: EventContext) -> None:
+        print("Received AgentTextEndHandler")
         if not context.turn_manager.is_role_turn(event.role):
             print(f"{event.role.name} finished STREAMING text but it was not his turn.")
             return

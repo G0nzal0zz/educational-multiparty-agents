@@ -48,4 +48,5 @@ class OLlamaLLM:
         if len(chunk) > 0:
             yield AgentChunkEvent.create(chunk)
 
+        print(f"Sending AgentEndEvent: {chunk}")
         yield AgentEndEvent.create(response)

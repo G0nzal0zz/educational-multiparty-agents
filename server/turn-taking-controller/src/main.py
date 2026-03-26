@@ -4,25 +4,15 @@ import queue
 from sys import platform
 
 import speech_recognition as sr
-from shared_lib.events import (
-    Role,
-    SocketAgentTextChunkEvent,
-    SocketAgentTextEndEvent,
-    SocketAgentTurnEvent,
-    SocketClientEvent,
-    SocketServerEvent,
-)
+from shared_lib.events import (Role, SocketAgentTextChunkEvent,
+                               SocketAgentTextEndEvent, SocketAgentTurnEvent,
+                               SocketClientEvent, SocketServerEvent)
 from shared_lib.stream import read_event, write_event
 
 from chatterbox_tts import ChatterboxTTS
 from config import config
-from event_handlers import (
-    AgentTextChunkHandler,
-    AgentTextEndHandler,
-    EventContext,
-    STTEventHandler,
-    TTSEndEventHandler,
-)
+from event_handlers import (AgentTextChunkHandler, AgentTextEndHandler,
+                            EventContext, STTEventHandler, TTSEndEventHandler)
 from events import STTChunkEvent, STTEndEvent, STTEvent, TTSEndEvent, TTSEvent
 from turn_manager import TurnManager
 from whisper_stt import WhisperSTT
@@ -89,6 +79,7 @@ async def server_listener(
     reader: asyncio.StreamReader, queue: asyncio.Queue[SocketServerEvent]
 ):
     async for event in read_event(reader):
+        print(f"RECEIVED event in TTC: {event}")
         if isinstance(event, SocketClientEvent):
             print("Received SocketClientEvent in the client, skipping for now.")
             continue

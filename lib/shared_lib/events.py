@@ -159,6 +159,7 @@ def event_to_dict(event: SocketEvent) -> dict:
         return {
             "type": event.type,
             "role": event.role.value,
+            "text": event.text,
             "ts": event.ts,
         }
     else:
@@ -203,6 +204,7 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
         role = Role(role_value) if isinstance(role_value, int) else Role[role_value]
         return SocketAgentTextEndEvent(
             type=event_type,
+            text=data.get("text", ""),
             role=role,
             ts=data.get("ts", now_ms()),
         )

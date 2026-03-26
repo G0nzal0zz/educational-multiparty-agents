@@ -79,6 +79,7 @@ async def _ollama_agent_stream(
                     yield agent_event
 
                     if isinstance(agent_event, AgentEndEvent):
+                        print("Agent has finished generating text")
                         break
 
             elif isinstance(event, SocketHumanTranscription):
@@ -111,6 +112,8 @@ async def _to_socket_events(
         if isinstance(event, AgentChunkEvent):
             yield SocketAgentTextChunkEvent.create(text=event.text, role=Role.TEACHER)
         elif isinstance(event, AgentEndEvent):
+            print("SENDING SocketAgentTextEndEvent")
+
             yield SocketAgentTextEndEvent.create(role=Role.TEACHER, text=event.text)
         else:
             print(f"WARNING: Unknown event type in pipeline: {type(event)}")
