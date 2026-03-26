@@ -89,15 +89,17 @@ class SocketAgentTextEndEvent:
     Role of the agent who was speaking.
     """
 
+    text: str
+
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
     @classmethod
     def create(
-        cls, role: Literal[Role.STUDENT, Role.TEACHER]
+        cls, role: Literal[Role.STUDENT, Role.TEACHER], text: str
     ) -> "SocketAgentTextEndEvent":
         """Factory method to create an SocketAgentTextEndEvent with current timestamp."""
-        return cls(type="agent_text_end", role=role, ts=now_ms())
+        return cls(type="agent_text_end", role=role, text=text, ts=now_ms())
 
 
 @dataclass

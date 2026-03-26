@@ -58,10 +58,12 @@ class AgentEndEvent:
     ts: int
     """Unix timestamp (milliseconds since epoch) when the event was created."""
 
+    text: str
+
     @classmethod
-    def create(cls) -> "AgentEndEvent":
+    def create(cls, text: str) -> "AgentEndEvent":
         """Factory method to create an AgentEndEvent event with current timestamp."""
-        return cls(type="agent_end", ts=now_ms())
+        return cls(type="agent_end", text=text, ts=now_ms())
 
 
 AgentEvent = AgentChunkEvent | AgentEndEvent

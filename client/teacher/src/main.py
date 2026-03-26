@@ -54,7 +54,6 @@ async def _ollama_agent_stream(
     feeder = asyncio.create_task(_feed_events())
 
     first_turn = True
-    count = 0
 
     async def generate_output(message: str):
         async for chunk in agent.generate_response(message):
@@ -77,22 +76,17 @@ async def _ollama_agent_stream(
 
                 while True:
                     agent_event = await output.get()
+                    yield agent_event
 
                     if isinstance(agent_event, AgentEndEvent):
                         break
 
-                    print(f"Sending AgentChunkEvent {agent_event}")
-                    yield agent_event
-
-                yield AgentEndEvent.create()
-
             elif isinstance(event, SocketHumanTranscription):
-                # start generation without blocking
                 current_task = asyncio.create_task(generate_output(event.text))
 
             elif isinstance(event, SocketAgentTextEndEvent):
                 current_task = asyncio.create_task(
-                    generate_output("Student asked a question...")
+                    generate_output("Student asked a question: " + event.text)
                 )
 
             else:
@@ -117,7 +111,7 @@ async def _to_socket_events(
         if isinstance(event, AgentChunkEvent):
             yield SocketAgentTextChunkEvent.create(text=event.text, role=Role.TEACHER)
         elif isinstance(event, AgentEndEvent):
-            yield SocketAgentTextEndEvent.create(role=Role.TEACHER)
+            yield SocketAgentTextEndEvent.create(role=Role.TEACHER, text=event.text)
         else:
             print(f"WARNING: Unknown event type in pipeline: {type(event)}")
 

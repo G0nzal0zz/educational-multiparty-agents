@@ -28,6 +28,7 @@ class OLlamaLLM:
         # stream_mode="messages" yields message chunks as they're generated.
         prompt = self.build_ollama_prompt(message)
         stream = self.model.astream(prompt)
+        response = ""
         chunk = ""
         phrases_in_chunk = 0
 
@@ -40,10 +41,11 @@ class OLlamaLLM:
             if phrases_in_chunk >= PHRASES_IN_CHUNK:
                 print(f"Sending AgentChunkEvent: {chunk}")
                 yield AgentChunkEvent.create(chunk)
+                response = response + " " + chunk
                 chunk = ""
                 phrases_in_chunk = 0
 
         if len(chunk) > 0:
             yield AgentChunkEvent.create(chunk)
 
-        yield AgentEndEvent.create()
+        yield AgentEndEvent.create(response)

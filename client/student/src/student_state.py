@@ -1,17 +1,31 @@
 from dataclasses import dataclass, field
+from typing import Literal, TypedDict
+
+from shared_lib.events import Role
+
+
+class TranscriptEntry(TypedDict):
+    role: Literal[Role.HUMAN, Role.TEACHER]
+    text: str
 
 
 @dataclass
 class StudentState:
-    transcript: list[dict[str, str]] = field(default_factory=list)
+    transcript: list[TranscriptEntry] = field(default_factory=list)
     questions_asked: list[str] = field(default_factory=list)
     human_level_hints: list[str] = field(default_factory=list)
 
-    def append_transcript(self, role: str, text: str) -> None:
+    def append_transcript(
+        self, role: Literal[Role.HUMAN, Role.TEACHER], text: str
+    ) -> None:
         if self.transcript and self.transcript[-1]["role"] == role:
-            self.transcript[-1]["text"] += " " + text.strip()
+            self.transcript[-1]["text"] += " " + text
         else:
-            self.transcript.append({"role": role, "text": text.strip()})
+            entry: TranscriptEntry = {
+                "role": role,
+                "text": text,
+            }
+            self.transcript.append(entry)
 
     def note_human_input(self, text: str) -> None:
         hint = _infer_level_hint(text)
@@ -21,11 +35,30 @@ class StudentState:
 
 def _infer_level_hint(text: str) -> str:
     text_lower = text.lower()
-    if any(w in text_lower for w in ["what is", "what does", "what are", "i don't understand", "i dont understand"]):
+    if any(
+        w in text_lower
+        for w in [
+            "what is",
+            "what does",
+            "what are",
+            "i don't understand",
+            "i dont understand",
+        ]
+    ):
         return "The human student asked a basic definitional question, suggesting a beginner level."
     if any(w in text_lower for w in ["why", "how come", "how does", "explain"]):
         return "The human student asked a conceptual why or how question, suggesting intermediate curiosity."
-    if any(w in text_lower for w in ["compare", "difference", "versus", "trade-off", "tradeoff", "implication"]):
+    if any(
+        w in text_lower
+        for w in [
+            "compare",
+            "difference",
+            "versus",
+            "trade-off",
+            "tradeoff",
+            "implication",
+        ]
+    ):
         return "The human student asked an analytical or comparative question, suggesting a higher level of engagement."
     if len(text.split()) <= 4:
         return "The human student gave a very short response, possibly indicating confusion or disengagement."

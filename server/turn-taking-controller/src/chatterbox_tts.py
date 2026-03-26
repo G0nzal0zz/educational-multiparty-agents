@@ -2,16 +2,12 @@ import asyncio
 import queue
 import threading
 import time
-from collections.abc import AsyncGenerator
-from datetime import datetime
 from typing import Literal
 
-import numpy as np
 import sounddevice as sd
 import torch
-import torchaudio as ta
 from chatterbox.tts_turbo import ChatterboxTurboTTS
-from shared_lib.events import Role, SocketAgentTextChunkEvent
+from shared_lib.events import Role
 
 from events import TTSEndEvent
 
