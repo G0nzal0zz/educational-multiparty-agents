@@ -139,11 +139,6 @@ class TTSEndEventHandler:
 class AgentTextChunkHandler:
     _tts_task: asyncio.Task[None] | None = None
 
-    def _turn_has_changed(self, turn_manager: TurnManager):
-        if turn_manager.current_turn != Turn.IDLE:
-            return True
-        return False
-
     async def handle(
         self, event: SocketAgentTextChunkEvent, context: EventContext
     ) -> None:
@@ -179,7 +174,6 @@ class AgentTextChunkHandler:
 
 class AgentTextEndHandler:
     def handle(self, event: SocketAgentTextEndEvent, context: EventContext) -> None:
-        print("Received AgentTextEndHandler")
         if not context.turn_manager.is_role_turn(event.role):
             print(f"{event.role.name} finished STREAMING text but it was not his turn.")
             return

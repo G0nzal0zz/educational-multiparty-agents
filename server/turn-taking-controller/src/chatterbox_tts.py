@@ -55,8 +55,11 @@ class ChatterboxTTS:
         """Worker thread that plays audio chunks from queue"""
         while True:
             try:
-                audio_chunk = audio_queue.get(timeout=1.0)
-                if audio_chunk is None or self.audio_player_stop:  # Sentinel to stop
+                audio_chunk = audio_queue.get(timeout=0.5)
+                if self.audio_player_stop:
+                    print("Stopping playing audio")
+                    continue
+                if audio_chunk is None:  # Sentinel to stop
                     break
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
@@ -91,6 +94,7 @@ class ChatterboxTTS:
                 # If there is already audio in the queue, wait until playback starts
                 # to avoid overloading the GPU and potentially running out of memory
                 if audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
+                    print("Audio queue size is too big")
                     time.sleep(1)
                     continue
                 text_chunk = self.text_queue.get()
