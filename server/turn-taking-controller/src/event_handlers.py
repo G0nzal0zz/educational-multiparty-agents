@@ -3,9 +3,14 @@ import queue
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
-from shared_lib.events import (Role, SocketAgentTextChunkEvent,
-                               SocketAgentTextEndEvent, SocketAgentTurnEvent,
-                               SocketHumanTranscription)
+from shared_lib.events import (
+    Role,
+    SocketAgentTextChunkEvent,
+    SocketAgentTextEndEvent,
+    SocketAgentTurnCancelledEvent,
+    SocketAgentTurnEvent,
+    SocketHumanTranscription,
+)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
@@ -46,27 +51,34 @@ class EventContext:
 
 
 class STTEventHandler:
-    def handle(self, event: STTEvent, context: EventContext) -> None:
+    async def handle(self, event: STTEvent, context: EventContext) -> None:
         print(f"STT: Current role speaking = f{context.turn_manager.current_turn}")
+        # Handling human interruption
         if context.turn_manager.current_turn in [Turn.TEACHER, Turn.STUDENT]:
             print(
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
             context.tts.audio_player_stop = True
+            current_role = (
+                Role.TEACHER
+                if context.turn_manager.current_turn == Turn.TEACHER
+                else Role.STUDENT
+            )
+            cancelled_event = SocketAgentTurnCancelledEvent.create()
+
+            write_event(context.server_writers[current_role], cancelled_event)
 
         if isinstance(event, STTEndEvent):
-            self._handle_end_event(event, context)
+            await self._handle_end_event(event, context)
 
-    def _handle_end_event(self, event: STTEndEvent, context: EventContext):
+    async def _handle_end_event(self, event: STTEndEvent, context: EventContext):
         human_event = SocketHumanTranscription.create(event.transcript)
         turn_event = SocketAgentTurnEvent.create()
 
-        print(f"STTTT: Sending human event: {human_event}")
         write_event(context.server_writers[Role.TEACHER], human_event)
-        asyncio.sleep(0.1)
-        write_event(context.server_writers[Role.TEACHER], turn_event)
-
         write_event(context.server_writers[Role.STUDENT], human_event)
+
+        write_event(context.server_writers[Role.TEACHER], turn_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
 

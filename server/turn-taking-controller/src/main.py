@@ -121,8 +121,8 @@ async def start(whisper: WhisperSTT):
             role = Role.STUDENT
         nonlocal count
         count = count + 1
-        # if count == 2:
-        #     write_event(server_writers[Role.TEACHER], SocketAgentTurnEvent.create())
+        if count == 2:
+            write_event(server_writers[Role.TEACHER], SocketAgentTurnEvent.create())
 
         server_writers[role] = writer
         server_task = asyncio.create_task(server_listener(reader, server_event_queue))

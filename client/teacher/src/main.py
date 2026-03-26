@@ -11,6 +11,7 @@ from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
+    SocketAgentTurnCancelledEvent,
     SocketAgentTurnEvent,
     SocketClientEvent,
     SocketEvent,
@@ -41,14 +42,15 @@ async def _ollama_agent_stream(
 
     pending: asyncio.Queue[SocketEvent | None] = asyncio.Queue()
     output: asyncio.Queue[AgentEvent] = asyncio.Queue()
+    cancelled = asyncio.Event()
 
     async def _feed_events():
         """Continuously read client events into a queue, flagging cancellations."""
         async for event in event_stream:
-            # if isinstance(event, SocketTurnCancelledEvent):
-            #     cancelled.set()
-            # else:
-            await pending.put(event)
+            if isinstance(event, SocketAgentTurnCancelledEvent):
+                cancelled.set()
+            else:
+                await pending.put(event)
         await pending.put(None)  # Sentinel: client stream ended
 
     feeder = asyncio.create_task(_feed_events())
@@ -56,8 +58,12 @@ async def _ollama_agent_stream(
     first_turn = True
 
     async def generate_output(message: str):
-        async for chunk in agent.generate_response(message):
-            await output.put(chunk)
+        try:
+            async for chunk in agent.generate_response(message):
+                await output.put(chunk)
+        except asyncio.CancelledError:
+            print("LLM generation cancelled")
+            raise
 
     current_task = None
 
@@ -76,10 +82,23 @@ async def _ollama_agent_stream(
 
                 while True:
                     agent_event = await output.get()
+
+                    if cancelled.is_set():
+                        print("Turn cancelled, stopping LLM generation")
+                        if current_task and not current_task.done():
+                            _ = current_task.cancel()
+                            try:
+                                await current_task
+                            except asyncio.CancelledError:
+                                pass
+                        current_task = None
+                        break
+
                     yield agent_event
 
                     if isinstance(agent_event, AgentEndEvent):
                         print("Agent has finished generating text")
+                        current_task = None
                         break
 
             elif isinstance(event, SocketHumanTranscription):
@@ -95,7 +114,7 @@ async def _ollama_agent_stream(
 
     finally:
         if current_task:
-            current_task.cancel()
+            _ = current_task.cancel()
 
         _ = feeder.cancel()
         try:

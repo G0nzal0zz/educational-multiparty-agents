@@ -124,9 +124,28 @@ class SocketAgentTurnEvent:
         return cls(type="agent_turn", ts=now_ms())
 
 
-# Union types for type-safe event handling
+@dataclass
+class SocketAgentTurnCancelledEvent:
+    """
+    Event sent to an agent to signal that its turn was cancelled (e.g., interrupted by human).
 
-SocketClientEvent = SocketHumanTranscription | SocketAgentTurnEvent
+    This event is sent from the server to the client.
+    """
+
+    type: Literal["agent_turn_cancelled"]
+
+    ts: int
+    """Unix timestamp (milliseconds since epoch) when the event was created."""
+
+    @classmethod
+    def create(cls) -> "SocketAgentTurnCancelledEvent":
+        """Factory method to create an SocketAgentTurnCancelledEvent with current timestamp."""
+        return cls(type="agent_turn_cancelled", ts=now_ms())
+
+
+SocketClientEvent = (
+    SocketHumanTranscription | SocketAgentTurnEvent | SocketAgentTurnCancelledEvent
+)
 """Events sent from the turn-taking controller (client) to the server."""
 
 SocketServerEvent = SocketAgentTextChunkEvent | SocketAgentTextEndEvent
@@ -144,6 +163,11 @@ def event_to_dict(event: SocketEvent) -> dict:
             "ts": event.ts,
         }
     elif isinstance(event, SocketAgentTurnEvent):
+        return {
+            "type": event.type,
+            "ts": event.ts,
+        }
+    elif isinstance(event, SocketAgentTurnCancelledEvent):
         return {
             "type": event.type,
             "ts": event.ts,
@@ -188,6 +212,11 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
 
     elif event_type == "agent_turn":
         return SocketAgentTurnEvent(type=event_type, ts=data.get("ts", now_ms()))
+
+    elif event_type == "agent_interruption":
+        return SocketAgentTurnCancelledEvent(
+            type=event_type, ts=data.get("ts", now_ms())
+        )
 
     elif event_type == "agent_text_chunk":
         role_value = data.get("role", Role.TEACHER.value)

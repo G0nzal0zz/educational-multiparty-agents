@@ -9,6 +9,7 @@ from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
     SocketAgentTextEndEvent,
+    SocketAgentTurnCancelledEvent,
     SocketAgentTurnEvent,
     SocketHumanTranscription,
     event_to_dict,
@@ -55,6 +56,9 @@ When formulating questions:
 
 agent = OLlamaLLM(STUDENT_SYSTEM_PROMPT)
 
+cancelled = asyncio.Event()
+generation_task: asyncio.Task | None = None
+
 
 def _build_lesson_context(state: StudentState) -> str:
     parts = ["Lesson transcript so far:"]
@@ -90,15 +94,19 @@ def handle_teacher_end(
     state: StudentState,
     writer: asyncio.StreamWriter,
     output_queue: asyncio.Queue[AgentEvent],
-) -> None:
+) -> asyncio.Task:
     async def add_output_to_queue():
-        trancripts = _build_lesson_context(state)
-        async for ste in agent.generate_response(
-            f"Based on the teacher's last statements,{trancripts}, ask one short clarifying question that would help the human student understand better."
-        ):
-            await output_queue.put(ste)
+        try:
+            trancripts = _build_lesson_context(state)
+            async for ste in agent.generate_response(
+                f"Based on the teacher's last statements,{trancripts}, ask one short clarifying question that would help the human student understand better."
+            ):
+                await output_queue.put(ste)
+        except asyncio.CancelledError:
+            print("Student LLM generation cancelled")
+            raise
 
-    asyncio.create_task(add_output_to_queue())
+    return asyncio.create_task(add_output_to_queue())
 
 
 async def handle_agent_turn(
@@ -106,6 +114,18 @@ async def handle_agent_turn(
 ) -> None:
     while True:
         agent_event = await output_queue.get()
+
+        if cancelled.is_set():
+            if generation_task and not generation_task.done():
+                generation_task.cancel()
+                try:
+                    await generation_task
+                except asyncio.CancelledError:
+                    pass
+            generation_task = None
+            cancelled.clear()
+            break
+
         await asyncio.sleep(0.1)  # small delay to avoid flooding (optional)
         if isinstance(agent_event, AgentEndEvent):
             event = SocketAgentTextEndEvent.create(Role.STUDENT, agent_event.text)
@@ -127,7 +147,7 @@ async def event_loop(
 
         if isinstance(event, SocketAgentTextEndEvent):
             state.append_transcript(Role.TEACHER, event.text)
-            handle_teacher_end(state, writer, output_queue)
+            generation_task = handle_teacher_end(state, writer, output_queue)
 
         elif isinstance(event, SocketHumanTranscription):
             state.append_transcript(Role.HUMAN, event.text)
@@ -135,6 +155,9 @@ async def event_loop(
 
         elif isinstance(event, SocketAgentTurnEvent):
             await handle_agent_turn(writer, output_queue)
+
+        elif isinstance(event, SocketAgentTurnCancelledEvent):
+            cancelled.set()
 
         else:
             print(f"Student: unhandled event type {type(event)}")

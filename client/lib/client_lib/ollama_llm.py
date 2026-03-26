@@ -24,8 +24,6 @@ class OLlamaLLM:
         ]
 
     async def generate_response(self, message: str):
-        # Stream the agent's response using LangChain's astream method.
-        # stream_mode="messages" yields message chunks as they're generated.
         prompt = self.build_ollama_prompt(message)
         stream = self.model.astream(prompt)
         response = ""
