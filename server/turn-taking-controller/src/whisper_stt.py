@@ -85,6 +85,7 @@ class WhisperSTT:
             Consumes raw audio bytes and produces incremental transcription chunks.
             """
             buffer = bytes()
+            last_chunk_len = 0
 
             try:
                 while True:
@@ -105,13 +106,16 @@ class WhisperSTT:
                     )
 
                     text = str(result["text"]).strip()
-                    if not text:
+                    if not text or not any(c.isalnum() for c in text):
                         continue
 
+                    chunk = text[last_chunk_len:]
+                    last_chunk_len = len(text)
+
                     # Emit partial chunk
-                    await chunk_queue.put(text)
-                    print(f"[STT] Chunk received: {text}")
-                    await output_queue.put(STTChunkEvent.create(text))
+                    await chunk_queue.put(chunk)
+                    print(f"[STT] Chunk created: {chunk}")
+                    await output_queue.put(STTChunkEvent.create(chunk))
 
             except asyncio.CancelledError:
                 # Graceful shutdown

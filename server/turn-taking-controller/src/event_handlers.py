@@ -3,6 +3,7 @@ import queue
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
+import sounddevice as sd
 from shared_lib.events import (
     Role,
     SocketAgentTextChunkEvent,
@@ -59,6 +60,7 @@ class STTEventHandler:
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
             context.tts.audio_player_stop = True
+            sd.stop()
             current_role = (
                 Role.TEACHER
                 if context.turn_manager.current_turn == Turn.TEACHER
@@ -80,7 +82,7 @@ class STTEventHandler:
         write_event(context.server_writers[Role.TEACHER], human_event)
         write_event(context.server_writers[Role.STUDENT], human_event)
 
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.3)
         write_event(context.server_writers[Role.TEACHER], turn_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
@@ -117,6 +119,7 @@ class TTSEndEventHandler:
         ):
             context.turn_manager.set_turn(Turn.HUMAN)
             print("Teacher finished speaking. Setting TURN to HUMAN")
+            return
 
         turn_event = SocketAgentTurnEvent.create()
 
