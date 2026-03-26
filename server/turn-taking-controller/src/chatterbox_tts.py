@@ -87,12 +87,16 @@ class ChatterboxTTS:
 
         while True:
             try:
+
                 # If there is already audio in the queue, wait until playback starts
                 # to avoid overloading the GPU and potentially running out of memory
                 if audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
                     time.sleep(1)
                     continue
                 text_chunk = self.text_queue.get()
+                if self.audio_player_stop is True:
+                    print("Not playing since audio_player_stop flag is set to True ")
+                    continue
 
                 if text_chunk is None:
                     break

@@ -48,6 +48,7 @@ async def _ollama_agent_stream(
         """Continuously read client events into a queue, flagging cancellations."""
         async for event in event_stream:
             if isinstance(event, SocketAgentTurnCancelledEvent):
+                print("Cancelling event")
                 cancelled.set()
             else:
                 await pending.put(event)
@@ -74,6 +75,7 @@ async def _ollama_agent_stream(
                 break
 
             if isinstance(event, SocketAgentTurnEvent):
+                cancelled.clear()
                 if first_turn:
                     current_task = asyncio.create_task(
                         generate_output("Teach something about the Spanish Empire.")
@@ -84,6 +86,7 @@ async def _ollama_agent_stream(
                     agent_event = await output.get()
 
                     if cancelled.is_set():
+                        cancelled.clear()
                         print("Turn cancelled, stopping LLM generation")
                         if current_task and not current_task.done():
                             _ = current_task.cancel()

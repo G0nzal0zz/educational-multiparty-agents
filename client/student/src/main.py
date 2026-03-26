@@ -110,14 +110,16 @@ def handle_teacher_end(
 
 
 async def handle_agent_turn(
-    writer: asyncio.StreamWriter, output_queue: asyncio.Queue[AgentEvent]
+    writer: asyncio.StreamWriter,
+    output_queue: asyncio.Queue[AgentEvent],
+    generation_task: asyncio.Task | None,
 ) -> None:
     while True:
         agent_event = await output_queue.get()
 
         if cancelled.is_set():
             if generation_task and not generation_task.done():
-                generation_task.cancel()
+                _ = generation_task.cancel()
                 try:
                     await generation_task
                 except asyncio.CancelledError:
@@ -141,12 +143,14 @@ async def event_loop(
 ) -> None:
     state = StudentState()
     output_queue: asyncio.Queue[AgentEvent] = asyncio.Queue()
+    generation_task = None
 
     async for event in read_event(reader):
         print(f"Student received event: {event}")
 
         if isinstance(event, SocketAgentTextEndEvent):
             state.append_transcript(Role.TEACHER, event.text)
+            cancelled.clear()
             generation_task = handle_teacher_end(state, writer, output_queue)
 
         elif isinstance(event, SocketHumanTranscription):
@@ -154,7 +158,7 @@ async def event_loop(
             state.note_human_input(event.text)
 
         elif isinstance(event, SocketAgentTurnEvent):
-            await handle_agent_turn(writer, output_queue)
+            await handle_agent_turn(writer, output_queue, generation_task)
 
         elif isinstance(event, SocketAgentTurnCancelledEvent):
             cancelled.set()

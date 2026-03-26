@@ -52,7 +52,7 @@ class EventContext:
 
 class STTEventHandler:
     async def handle(self, event: STTEvent, context: EventContext) -> None:
-        print(f"STT: Current role speaking = f{context.turn_manager.current_turn}")
+        print(f"STT: Current role speaking = {context.turn_manager.current_turn}")
         # Handling human interruption
         if context.turn_manager.current_turn in [Turn.TEACHER, Turn.STUDENT]:
             print(
@@ -65,8 +65,10 @@ class STTEventHandler:
                 else Role.STUDENT
             )
             cancelled_event = SocketAgentTurnCancelledEvent.create()
+            context.turn_manager.set_turn(Turn.HUMAN)
 
             write_event(context.server_writers[current_role], cancelled_event)
+            await asyncio.sleep(0.1)
 
         if isinstance(event, STTEndEvent):
             await self._handle_end_event(event, context)
@@ -78,9 +80,12 @@ class STTEventHandler:
         write_event(context.server_writers[Role.TEACHER], human_event)
         write_event(context.server_writers[Role.STUDENT], human_event)
 
+        await asyncio.sleep(0.1)
         write_event(context.server_writers[Role.TEACHER], turn_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
+        await asyncio.sleep(2.0)
+        context.tts.audio_player_stop = False
 
 
 class TTSEndEventHandler:

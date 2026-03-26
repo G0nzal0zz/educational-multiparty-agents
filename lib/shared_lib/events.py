@@ -213,7 +213,7 @@ def dict_to_event(data: dict) -> SocketClientEvent | SocketServerEvent:
     elif event_type == "agent_turn":
         return SocketAgentTurnEvent(type=event_type, ts=data.get("ts", now_ms()))
 
-    elif event_type == "agent_interruption":
+    elif event_type == "agent_turn_cancelled":
         return SocketAgentTurnCancelledEvent(
             type=event_type, ts=data.get("ts", now_ms())
         )
