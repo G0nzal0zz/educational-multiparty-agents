@@ -109,7 +109,6 @@ async def handle_agent_turn(
         await asyncio.sleep(0.1)  # small delay to avoid flooding (optional)
         if isinstance(agent_event, AgentEndEvent):
             event = SocketAgentTextEndEvent.create(Role.STUDENT, agent_event.text)
-            print(f"STUDENT: Sending SocketAgentTextEndEvent {event} to TTC")
             write_event(writer, event)
             break
         event = SocketAgentTextChunkEvent.create(agent_event.text, role=Role.STUDENT)

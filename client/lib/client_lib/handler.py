@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from collections.abc import AsyncGenerator
 
 from langchain_core.runnables import RunnableSerializable
@@ -46,9 +47,9 @@ class ClientHandler:
 
         except asyncio.CancelledError:
             raise
-        except Exception as e:
-            # TODO: Improve error handling
-            print("client error:", e)
+        except Exception:
+            print("client error:")
+            traceback.print_exc()
         finally:
             writer.close()
             await writer.wait_closed()

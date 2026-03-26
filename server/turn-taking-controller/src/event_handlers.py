@@ -3,13 +3,9 @@ import queue
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
-from shared_lib.events import (
-    Role,
-    SocketAgentTextChunkEvent,
-    SocketAgentTextEndEvent,
-    SocketAgentTurnEvent,
-    SocketHumanTranscription,
-)
+from shared_lib.events import (Role, SocketAgentTextChunkEvent,
+                               SocketAgentTextEndEvent, SocketAgentTurnEvent,
+                               SocketHumanTranscription)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
@@ -51,7 +47,8 @@ class EventContext:
 
 class STTEventHandler:
     def handle(self, event: STTEvent, context: EventContext) -> None:
-        if context.turn_manager.current_turn not in [Turn.TEACHER, Turn.STUDENT]:
+        print(f"STT: Current role speaking = f{context.turn_manager.current_turn}")
+        if context.turn_manager.current_turn in [Turn.TEACHER, Turn.STUDENT]:
             print(
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
@@ -64,7 +61,9 @@ class STTEventHandler:
         human_event = SocketHumanTranscription.create(event.transcript)
         turn_event = SocketAgentTurnEvent.create()
 
+        print(f"STTTT: Sending human event: {human_event}")
         write_event(context.server_writers[Role.TEACHER], human_event)
+        asyncio.sleep(0.1)
         write_event(context.server_writers[Role.TEACHER], turn_event)
 
         write_event(context.server_writers[Role.STUDENT], human_event)
@@ -76,7 +75,6 @@ class TTSEndEventHandler:
     def handle(
         self, event: TTSEndEvent, context: EventContext
     ) -> Awaitable[None] | None:
-        print(f"TTS finsished: {event}")
         if event.role == Role.TEACHER:
             return self._handle_teacher_end(context)
         elif event.role == Role.STUDENT:
