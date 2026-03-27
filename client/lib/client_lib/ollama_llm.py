@@ -14,13 +14,13 @@ class OLlamaLLM:
     system_prompt: str
 
     def __init__(self, system_prompt: str):
-        self.model = ChatOllama(model="steamdj/llama3.1-cpu-only", temperature=0)
+        self.model = ChatOllama(model="llama3.2:3b", temperature=0, num_gpu=0)
         self.system_prompt = system_prompt
 
     def build_ollama_prompt(self, message: str):
         return [
             ("system", self.system_prompt),
-            ("user", message),
+            ("human", message),
         ]
 
     async def generate_response(self, message: str):
@@ -31,7 +31,8 @@ class OLlamaLLM:
         phrases_in_chunk = 0
 
         async for message_chunk in stream:
-            chunk = chunk + " " + message_chunk.text
+            chunk = chunk + message_chunk.text
+            response = response + message_chunk.text
             if any(c in message_chunk.text for c in ".!?"):
                 print(f"Phrase completed, phrases in chunk = {phrases_in_chunk}")
                 phrases_in_chunk = phrases_in_chunk + 1
@@ -39,12 +40,11 @@ class OLlamaLLM:
             if phrases_in_chunk >= PHRASES_IN_CHUNK:
                 print(f"Sending AgentChunkEvent: {chunk}")
                 yield AgentChunkEvent.create(chunk)
-                response = response + " " + chunk
                 chunk = ""
                 phrases_in_chunk = 0
 
         if len(chunk) > 0:
             yield AgentChunkEvent.create(chunk)
 
-        print(f"Sending AgentEndEvent: {chunk}")
+        print(f"Sending AgentEndEvent: {response}")
         yield AgentEndEvent.create(response)

@@ -4,14 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
 import sounddevice as sd
-from shared_lib.events import (
-    Role,
-    SocketAgentTextChunkEvent,
-    SocketAgentTextEndEvent,
-    SocketAgentTurnCancelledEvent,
-    SocketAgentTurnEvent,
-    SocketHumanTranscription,
-)
+from shared_lib.events import (Role, SocketAgentTextChunkEvent,
+                               SocketAgentTextEndEvent,
+                               SocketAgentTurnCancelledEvent,
+                               SocketAgentTurnEvent, SocketHumanTranscription)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
@@ -60,7 +56,8 @@ class STTEventHandler:
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
             context.tts.audio_player_stop = True
-            sd.stop()
+            print(f"sd.get_stream() {sd.get_stream()}")
+            sd.get_stream().abort()
             current_role = (
                 Role.TEACHER
                 if context.turn_manager.current_turn == Turn.TEACHER
@@ -70,7 +67,6 @@ class STTEventHandler:
             context.turn_manager.set_turn(Turn.HUMAN)
 
             write_event(context.server_writers[current_role], cancelled_event)
-            await asyncio.sleep(0.1)
 
         if isinstance(event, STTEndEvent):
             await self._handle_end_event(event, context)
@@ -82,7 +78,6 @@ class STTEventHandler:
         write_event(context.server_writers[Role.TEACHER], human_event)
         write_event(context.server_writers[Role.STUDENT], human_event)
 
-        await asyncio.sleep(0.3)
         write_event(context.server_writers[Role.TEACHER], turn_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
@@ -145,6 +140,7 @@ class AgentTextChunkHandler:
     async def handle(
         self, event: SocketAgentTextChunkEvent, context: EventContext
     ) -> None:
+        print("INFO: HERREEE")
         if not context.turn_manager.is_role_turn(event.role):
             print(
                 f"Received SocketAgentTextChunkEvent, but audio couldn't be reproduced. "

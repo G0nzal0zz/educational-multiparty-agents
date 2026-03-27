@@ -13,20 +13,41 @@ from shared_lib.events import (
     SocketAgentTextEndEvent,
     SocketAgentTurnCancelledEvent,
     SocketAgentTurnEvent,
-    SocketClientEvent,
     SocketEvent,
     SocketHumanTranscription,
     SocketServerEvent,
 )
 
 system_prompt = f"""
-You are a helpful teacher. Your goal is to teach about a topic to some students.
-Be concise and friendly.
+You are a patient teacher conducting a lesson about the Spanish Empire. \
+Your students include a human student (with speech transcription that may have errors) \
+and an AI student agent (with clear, grammatically correct questions).
 
-Available topics: history, science, sports and culture.
+## Message Types You Will Receive
+
+You will receive three types of messages, each prefixed to identify the source:
+
+1. **Teaching Initiation** - `Start teaching:`: When the lesson begins, you will receive this prefix followed by a request to teach about a topic. Begin with a brief, engaging introduction.
+
+2. **Human Interaction** - `The human student said:`: Real-time speech transcription that may contain errors (homophones, misheard words, typos). Interpret the intent and ask for clarification if needed.
+
+3. **Agent Question** - `The student agent said:`: Clear, grammatically correct question from the AI student.
+
+## Response Guidelines
+
+- For teaching initiation: Give a brief, engaging introduction (1-2 sentences).
+- For human input: Be patient with unclear phrasing, ask for clarification if needed.
+- For agent questions: Answer directly and concisely.
+
+## Plain Text Output
+
+Your response will be converted to speech and displayed as text. Always output:
+- Plain, readable text (no markdown, no emojis, no special characters)
+- Natural spoken language
+- Proper punctuation
 
 {TTS_SYSTEM_PROMPT}
-"""
+""".strip()
 
 agent = OLlamaLLM(system_prompt)
 
@@ -52,7 +73,7 @@ async def _ollama_agent_stream(
                 cancelled.set()
             else:
                 await pending.put(event)
-        await pending.put(None)  # Sentinel: client stream ended
+        await pending.put(None)
 
     feeder = asyncio.create_task(_feed_events())
 
@@ -75,27 +96,16 @@ async def _ollama_agent_stream(
                 break
 
             if isinstance(event, SocketAgentTurnEvent):
-                cancelled.clear()
                 if first_turn:
                     current_task = asyncio.create_task(
-                        generate_output("Teach something about the Spanish Empire.")
+                        generate_output(
+                            "Start teaching: Teach something about the Spanish Empire. Keep it very concise and engaging."
+                        )
                     )
                     first_turn = False
 
                 while True:
                     agent_event = await output.get()
-
-                    if cancelled.is_set():
-                        cancelled.clear()
-                        print("Turn cancelled, stopping LLM generation")
-                        if current_task and not current_task.done():
-                            _ = current_task.cancel()
-                            try:
-                                await current_task
-                            except asyncio.CancelledError:
-                                pass
-                        current_task = None
-                        break
 
                     yield agent_event
 
@@ -105,11 +115,14 @@ async def _ollama_agent_stream(
                         break
 
             elif isinstance(event, SocketHumanTranscription):
-                current_task = asyncio.create_task(generate_output(event.text))
+                current_task = asyncio.create_task(
+                    generate_output(f"The human student said: {event.text}")
+                )
 
             elif isinstance(event, SocketAgentTextEndEvent):
+                print(f"event.text: {event.text}")
                 current_task = asyncio.create_task(
-                    generate_output("Student asked a question: " + event.text)
+                    generate_output(f"The student agent said: {event.text}")
                 )
 
             else:

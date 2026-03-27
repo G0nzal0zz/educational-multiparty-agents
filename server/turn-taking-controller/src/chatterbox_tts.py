@@ -50,8 +50,8 @@ class ChatterboxTTS:
         try:
             # Convert to numpy and play with sounddevice
             audio_np = audio_chunk.squeeze().numpy()
-            sd.play(audio_np, sample_rate)
-            sd.wait()  # Wait for this chunk to finish before returning
+            sd.play(audio_np, sample_rate, blocking=True)
+            print("INFO: AUDIO FINISHED PLAYING")
         except Exception as e:
             print(f"Error playing audio: {e}")
 
@@ -59,9 +59,10 @@ class ChatterboxTTS:
         """Worker thread that plays audio chunks from queue"""
         while True:
             try:
-                audio_chunk = audio_queue.get(timeout=0.5)
+                print("INFO: WAITING FOR AUDIO")
+                audio_chunk = audio_queue.get()
+                print("INFO: GOTTEN AUDIO")
                 if self.audio_player_stop:
-                    print("Stopping auddio AAAAAAAAA")
                     continue
                 if audio_chunk is None:  # Sentinel to stop
                     break
@@ -105,10 +106,14 @@ class ChatterboxTTS:
                 # If there is already audio in the queue, wait until playback starts
                 # to avoid overloading the GPU and potentially running out of memory
                 if audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
-                    print("Audio queue size is too big")
+                    print(
+                        "INFO: Waiting audio to be played before processing more text chunk"
+                    )
                     time.sleep(1)
                     continue
+
                 text_chunk = self.text_queue.get()
+                print("INFO: Generating audio from agent text chunk")
                 if self.audio_player_stop is True:
                     print("Not playing since audio_player_stop flag is set to True ")
                     continue
@@ -123,7 +128,7 @@ class ChatterboxTTS:
                     conds = Conditionals.load(builtin_voice, map_location="cpu").to(
                         device
                     )
-                self.model.conds = conds
+                    self.model.conds = conds
                 print(f"audio_path: {audio_path}")
                 for audio_chunk in self.model.generate(
                     text=text_chunk,
@@ -142,7 +147,6 @@ class ChatterboxTTS:
 
         print("Chatterbox finished generating audio")
         audio_queue.join()  # Wait for all audio to finish playing
-        print("AFTEER")
         audio_queue.put(None)  # Sentinel to stop thread
 
         print("Audio finished playing")
