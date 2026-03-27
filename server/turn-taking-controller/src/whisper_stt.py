@@ -106,11 +106,13 @@ class WhisperSTT:
                     )
 
                     text = str(result["text"]).strip()
-                    if not text or not any(c.isalnum() for c in text):
-                        continue
 
                     chunk = text[last_chunk_len:]
                     last_chunk_len = len(text)
+
+                    if not chunk or not any(c.isalnum() for c in chunk):
+                        continue
+                    print("[STT] len(chunk): ", len(chunk))
 
                     # Emit partial chunk
                     await chunk_queue.put(chunk)
@@ -133,7 +135,7 @@ class WhisperSTT:
                 while True:
                     try:
                         # Wait for next chunk, but timeout = silence
-                        chunk = await asyncio.wait_for(chunk_queue.get(), timeout=2.0)
+                        chunk = await asyncio.wait_for(chunk_queue.get(), timeout=4.0)
                         buffer += chunk
 
                     except asyncio.TimeoutError:
@@ -143,8 +145,8 @@ class WhisperSTT:
                             await output_queue.put(STTEndEvent.create(buffer))
                             buffer = ""
                         # TODO: Remove this else condition
-                        else:
-                            print("[STT] No speech was detected")
+                        # else:
+                        #     print("[STT] No speech was detected")
 
             except asyncio.CancelledError:
                 return

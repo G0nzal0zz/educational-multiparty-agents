@@ -4,10 +4,14 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
 import sounddevice as sd
-from shared_lib.events import (Role, SocketAgentTextChunkEvent,
-                               SocketAgentTextEndEvent,
-                               SocketAgentTurnCancelledEvent,
-                               SocketAgentTurnEvent, SocketHumanTranscription)
+from shared_lib.events import (
+    Role,
+    SocketAgentTextChunkEvent,
+    SocketAgentTextEndEvent,
+    SocketAgentTurnCancelledEvent,
+    SocketAgentTurnEvent,
+    SocketHumanTranscription,
+)
 from shared_lib.stream import write_event
 
 from chatterbox_tts import ChatterboxTTS
@@ -41,10 +45,9 @@ async def poll_callback(
 class EventContext:
     turn_manager: TurnManager
     server_writers: dict[Role, asyncio.StreamWriter]
-    tts: ChatterboxTTS
 
-    stt_event_queue: asyncio.Queue[STTEvent]
-    agents_chunk_event_queue: queue.Queue[str | None]
+    stt_output_event_queue: asyncio.Queue[STTEvent]
+    tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None]
 
 
 class STTEventHandler:
@@ -55,7 +58,7 @@ class STTEventHandler:
             print(
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
-            context.tts.audio_player_stop = True
+            # context.tts.audio_player_stop = True
             print(f"sd.get_stream() {sd.get_stream()}")
             sd.get_stream().abort()
             current_role = (
@@ -82,7 +85,7 @@ class STTEventHandler:
 
         context.turn_manager.set_turn(Turn.TEACHER)
         await asyncio.sleep(2.0)
-        context.tts.audio_player_stop = False
+        # context.tts.audio_player_stop = False
 
 
 class TTSEndEventHandler:
@@ -110,7 +113,7 @@ class TTSEndEventHandler:
             config.USER_TURN_TIMEOUT,
             0.1,
             self._human_has_talked,
-            context.stt_event_queue,
+            context.stt_output_event_queue,
         ):
             context.turn_manager.set_turn(Turn.HUMAN)
             print("Teacher finished speaking. Setting TURN to HUMAN")
@@ -135,12 +138,11 @@ class TTSEndEventHandler:
 
 
 class AgentTextChunkHandler:
-    _tts_task: asyncio.Task[None] | None = None
+    _tts_task = None
 
     async def handle(
         self, event: SocketAgentTextChunkEvent, context: EventContext
     ) -> None:
-        print("INFO: HERREEE")
         if not context.turn_manager.is_role_turn(event.role):
             print(
                 f"Received SocketAgentTextChunkEvent, but audio couldn't be reproduced. "
@@ -148,35 +150,17 @@ class AgentTextChunkHandler:
             )
             return
 
-        if self._needs_tts_start():
-            self._start_tts(event.role, context)
-
-        context.agents_chunk_event_queue.put(event.text)
-
-    def _needs_tts_start(self) -> bool:
-        return (
-            AgentTextChunkHandler._tts_task is None
-            or AgentTextChunkHandler._tts_task.done()
-        )
-
-    def _start_tts(
-        self, role: Literal[Role.STUDENT, Role.TEACHER], context: EventContext
-    ) -> None:
-        thread = asyncio.to_thread(
-            context.tts.start,
-            role,
-            asyncio.get_running_loop(),
-        )
-
-        AgentTextChunkHandler._tts_task = asyncio.create_task(thread)
+        context.tts_input_event_queue.put_nowait(event)
 
 
 class AgentTextEndHandler:
-    def handle(self, event: SocketAgentTextEndEvent, context: EventContext) -> None:
+    async def handle(
+        self, event: SocketAgentTextEndEvent, context: EventContext
+    ) -> None:
         if not context.turn_manager.is_role_turn(event.role):
             print(f"{event.role.name} finished STREAMING text but it was not his turn.")
             return
 
-        context.agents_chunk_event_queue.put(None)
+        context.tts_input_event_queue.put_nowait(None)
         writer_role = Role.TEACHER if event.role == Role.STUDENT else Role.STUDENT
         write_event(context.server_writers[writer_role], event)

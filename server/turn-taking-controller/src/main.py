@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import queue
 from sys import platform
 
 import speech_recognition as sr
@@ -39,25 +38,23 @@ HANDLERS = {
 async def process_events(
     server_writer: dict[Role, asyncio.StreamWriter],
     server_event_queue: asyncio.Queue[SocketServerEvent],
-    stt_event_queue: asyncio.Queue[STTEvent],
-    tts_event_queue: asyncio.Queue[TTSEvent],
-    agent_chunk_event_queue: queue.Queue[str | None],
+    stt_output_event_queue: asyncio.Queue[STTEvent],
+    tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None],
+    tts_output_event_queue: asyncio.Queue[TTSEvent],
 ):
     turn_manager = TurnManager()
-    tts = ChatterboxTTS(tts_event_queue, agent_chunk_event_queue)
     context = EventContext(
         turn_manager=turn_manager,
         server_writers=server_writer,
-        tts=tts,
-        stt_event_queue=stt_event_queue,
-        agents_chunk_event_queue=agent_chunk_event_queue,
+        stt_output_event_queue=stt_output_event_queue,
+        tts_input_event_queue=tts_input_event_queue,
     )
 
     while True:
         done, pending = await asyncio.wait(
             [
-                asyncio.create_task(stt_event_queue.get()),
-                asyncio.create_task(tts_event_queue.get()),
+                asyncio.create_task(stt_output_event_queue.get()),
+                asyncio.create_task(tts_output_event_queue.get()),
                 asyncio.create_task(server_event_queue.get()),
             ],
             return_when=asyncio.FIRST_COMPLETED,
@@ -79,8 +76,8 @@ async def process_events(
             _ = task.cancel()
 
 
-async def user_listener(whisper: WhisperSTT, queue: asyncio.Queue[STTEvent]):
-    async for event in whisper.STT():
+async def user_listener(stt: WhisperSTT, queue: asyncio.Queue[STTEvent]):
+    async for event in stt.STT():
         await queue.put(event)
 
 
@@ -88,29 +85,44 @@ async def server_listener(
     reader: asyncio.StreamReader, queue: asyncio.Queue[SocketServerEvent]
 ):
     async for event in read_event(reader):
-        print(f"RECEIVED event in TTC: {event}")
+        print(f"[INFO] RECEIVED event in TTC: {event}")
         if isinstance(event, SocketClientEvent):
-            print("Received SocketClientEvent in the client, skipping for now.")
+            print("[WARN] Received SocketClientEvent in the client")
             continue
         await queue.put(event)
 
 
-async def start(whisper: WhisperSTT):
-    stt_event_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
-    tts_event_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
-    agents_chunk_event_queue: queue.Queue[str | None] = queue.Queue()
+async def tts_listener(tts: ChatterboxTTS, queue: asyncio.Queue[TTSEvent]):
+    tts.start()
+    async for event in tts.events():
+        print(f"INFO: TTS generated an event: {event}")
+        await queue.put(event)
+
+
+async def start(args, source):
     server_event_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
+    stt_output_event_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
+    tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None] = (
+        asyncio.Queue()
+    )
+    tts_output_event_queue: asyncio.Queue[TTSEvent] = asyncio.Queue()
+
+    stt = WhisperSTT(args, source)
+    tts = ChatterboxTTS(tts_input_event_queue)
+
     server_writers: dict[Role, asyncio.StreamWriter] = {}
     count = 0
 
-    user_task = asyncio.create_task(user_listener(whisper, stt_event_queue))
+    stt_task = asyncio.create_task(user_listener(stt, stt_output_event_queue))
+    tts_task = asyncio.create_task(tts_listener(tts, tts_output_event_queue))
+
     process_events_task = asyncio.create_task(
         process_events(
             server_writers,
             server_event_queue,
-            stt_event_queue,
-            tts_event_queue,
-            agents_chunk_event_queue,
+            stt_output_event_queue,
+            tts_input_event_queue,
+            tts_output_event_queue,
         )
     )
 
@@ -138,9 +150,12 @@ async def start(whisper: WhisperSTT):
     print(f"TTC server listening on {config.HOST}:{config.PORT}")
 
     try:
-        _ = await asyncio.gather(user_task, process_events_task, server.serve_forever())
+        _ = await asyncio.gather(
+            stt_task, tts_task, process_events_task, server.serve_forever()
+        )
     except asyncio.CancelledError:
-        _ = user_task.cancel()
+        _ = stt_task.cancel()
+        _ = tts_task.cancel()
         _ = process_events_task.cancel()
 
 
@@ -208,10 +223,7 @@ async def main():
     else:
         source = sr.Microphone(sample_rate=16000)
 
-    whisper = WhisperSTT(args, source)
-    llama = None
-
-    await start(whisper)
+    await start(args, source)
 
 
 if __name__ == "__main__":

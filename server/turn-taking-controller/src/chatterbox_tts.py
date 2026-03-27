@@ -3,14 +3,14 @@ import os
 import queue
 import threading
 import time
+import traceback
 from pathlib import Path
-from typing import Literal
 
 import sounddevice as sd
 import torch
 from chatterbox.tts_turbo import ChatterboxTurboTTS, Conditionals
 from huggingface_hub import snapshot_download
-from shared_lib.events import Role
+from shared_lib.events import Role, SocketAgentTextChunkEvent
 
 from events import TTSEndEvent
 
@@ -28,30 +28,36 @@ REPO_ID = "ResembleAI/chatterbox-turbo"
 
 
 class ChatterboxTTS:
-    tts_queue: asyncio.Queue[TTSEndEvent]
-    text_queue: queue.Queue[str | None]
+    input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None]
     model: ChatterboxTurboTTS
 
     audio_player_stop: bool
 
+    _output_queue: queue.Queue
+    _loop: asyncio.AbstractEventLoop | None
+    _worker_thread: threading.Thread | None
+
     def __init__(
-        self, tts_queue: asyncio.Queue[TTSEndEvent], text_queue: queue.Queue[str | None]
+        self, input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None]
     ):
-        self.tts_queue = tts_queue
-        self.text_queue = text_queue
+        self.input_event_queue = input_event_queue
 
         self.model = ChatterboxTurboTTS.from_pretrained(device=device)
 
         self.audio_thread = None
         self.audio_player_stop = False
+        self._output_queue = queue.Queue()
+        self._loop = None
+        self._worker_thread = None
 
     def play_audio_chunk(self, audio_chunk, sample_rate):
         """Play audio chunk using sounddevice with proper sequencing"""
         try:
             # Convert to numpy and play with sounddevice
             audio_np = audio_chunk.squeeze().numpy()
-            sd.play(audio_np, sample_rate, blocking=True)
-            print("INFO: AUDIO FINISHED PLAYING")
+            sd.play(audio_np, sample_rate)
+            sd.wait()  # Wait for this chunk to finish before returning
+            print("INFO: Sounddevice wait finished")
         except Exception as e:
             print(f"Error playing audio: {e}")
 
@@ -64,8 +70,6 @@ class ChatterboxTTS:
                 print("INFO: GOTTEN AUDIO")
                 if self.audio_player_stop:
                     continue
-                if audio_chunk is None:  # Sentinel to stop
-                    break
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
             except queue.Empty:
@@ -81,30 +85,41 @@ class ChatterboxTTS:
         print("Stopping audio player")
         self.audio_player_stop = True
 
-    def start(
-        self, role: Literal[Role.TEACHER, Role.STUDENT], loop: asyncio.AbstractEventLoop
-    ):
+    def _chatterbox_build_student_conditionals(self) -> Conditionals | None:
+        conds = None
         local_path = snapshot_download(
             repo_id=REPO_ID,
             token=os.getenv("HF_TOKEN") or None,
             # Optional: Filter to download only what you need
             allow_patterns=["*.safetensors", "*.json", "*.txt", "*.pt", "*.model"],
         )
+
         ckpt_dir = Path(local_path)
-        # Setup audio playback queue and thread
+
+        builtin_voice = ckpt_dir / "conds.pt"
+        if builtin_voice.exists():
+            conds = Conditionals.load(builtin_voice, map_location="cpu").to(device)
+        return conds
+
+    def start(self):
+        self._loop = asyncio.get_running_loop()
+        self._worker_thread = threading.Thread(target=self._worker)
+        self._worker_thread.daemon = True
+        self._worker_thread.start()
+
+    def _worker(self):
         audio_queue = queue.Queue()
-        self.audio_thread = threading.Thread(
+        audio_thread = threading.Thread(
             target=self.audio_player_worker, args=(audio_queue, self.model.sr)
         )
-        self.audio_thread.daemon = True
-        self.audio_thread.start()
+        audio_thread.daemon = True
+        audio_thread.start()
         self.audio_player_stop = False
+        conds = self._chatterbox_build_student_conditionals()
+        role = Role.TEACHER
 
         while True:
             try:
-
-                # If there is already audio in the queue, wait until playback starts
-                # to avoid overloading the GPU and potentially running out of memory
                 if audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
                     print(
                         "INFO: Waiting audio to be played before processing more text chunk"
@@ -112,26 +127,33 @@ class ChatterboxTTS:
                     time.sleep(1)
                     continue
 
-                text_chunk = self.text_queue.get()
-                print("INFO: Generating audio from agent text chunk")
+                try:
+                    text_chunk = self.input_event_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    time.sleep(0.1)
+                    continue
+
                 if self.audio_player_stop is True:
                     print("Not playing since audio_player_stop flag is set to True ")
                     continue
 
                 if text_chunk is None:
-                    break
+                    audio_queue.join()
+                    self._loop.call_soon_threadsafe(
+                        self._output_queue.put_nowait, TTSEndEvent.create(role)
+                    )
+                    print("INFO: Audio finished playing")
+                    continue
+
+                role = text_chunk.role
+                audio_path = None if role == Role.TEACHER else "./merged_audio.wav"
+
+                if conds:
+                    self.model.conds = conds
 
                 initial_time = time.time()
-                audio_path = None if role == Role.TEACHER else "./merged_audio.wav"
-                builtin_voice = ckpt_dir / "conds.pt"
-                if builtin_voice.exists():
-                    conds = Conditionals.load(builtin_voice, map_location="cpu").to(
-                        device
-                    )
-                    self.model.conds = conds
-                print(f"audio_path: {audio_path}")
                 for audio_chunk in self.model.generate(
-                    text=text_chunk,
+                    text=text_chunk.text,
                     audio_prompt_path=audio_path,
                     exaggeration=0.5,
                     temperature=0.8,
@@ -139,18 +161,13 @@ class ChatterboxTTS:
                 ):
                     print(f"Chunk time = {time.time() - initial_time}")
 
-                    # Queue audio for immediate playback
                     audio_queue.put(audio_chunk.clone())
 
             except Exception as e:
-                print(f"Error during streaming generation: {e}")
+                print(f"ERROR: During TTS generation: {e}")
+                traceback.print_exc()
 
-        print("Chatterbox finished generating audio")
-        audio_queue.join()  # Wait for all audio to finish playing
-        audio_queue.put(None)  # Sentinel to stop thread
-
-        print("Audio finished playing")
-        self.audio_thread = None
-        _ = asyncio.run_coroutine_threadsafe(
-            self.tts_queue.put(TTSEndEvent.create(role)), loop
-        )
+    async def events(self):
+        while True:
+            event = await asyncio.to_thread(self._output_queue.get)
+            yield event

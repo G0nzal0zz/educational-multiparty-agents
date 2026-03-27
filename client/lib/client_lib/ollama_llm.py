@@ -34,7 +34,6 @@ class OLlamaLLM:
             chunk = chunk + message_chunk.text
             response = response + message_chunk.text
             if any(c in message_chunk.text for c in ".!?"):
-                print(f"Phrase completed, phrases in chunk = {phrases_in_chunk}")
                 phrases_in_chunk = phrases_in_chunk + 1
 
             if phrases_in_chunk >= PHRASES_IN_CHUNK:
