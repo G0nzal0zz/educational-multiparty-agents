@@ -41,6 +41,7 @@ async def process_events(
     stt_output_event_queue: asyncio.Queue[STTEvent],
     tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None],
     tts_output_event_queue: asyncio.Queue[TTSEvent],
+    tts: ChatterboxTTS,
 ):
     turn_manager = TurnManager()
     context = EventContext(
@@ -48,6 +49,7 @@ async def process_events(
         server_writers=server_writer,
         stt_output_event_queue=stt_output_event_queue,
         tts_input_event_queue=tts_input_event_queue,
+        tts=tts,
     )
 
     while True:
@@ -123,6 +125,7 @@ async def start(args, source):
             stt_output_event_queue,
             tts_input_event_queue,
             tts_output_event_queue,
+            tts,
         )
     )
 

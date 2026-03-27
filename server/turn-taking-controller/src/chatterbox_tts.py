@@ -34,6 +34,7 @@ class ChatterboxTTS:
     audio_player_stop: bool
 
     _output_queue: queue.Queue
+    _audio_queue: queue.Queue
     _loop: asyncio.AbstractEventLoop | None
     _worker_thread: threading.Thread | None
 
@@ -47,6 +48,7 @@ class ChatterboxTTS:
         self.audio_thread = None
         self.audio_player_stop = False
         self._output_queue = queue.Queue()
+        self._audio_queue = queue.Queue()
         self._loop = None
         self._worker_thread = None
 
@@ -69,6 +71,7 @@ class ChatterboxTTS:
                 audio_chunk = audio_queue.get()
                 print("INFO: GOTTEN AUDIO")
                 if self.audio_player_stop:
+                    audio_queue.task_done()
                     continue
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
@@ -108,9 +111,8 @@ class ChatterboxTTS:
         self._worker_thread.start()
 
     def _worker(self):
-        audio_queue = queue.Queue()
         audio_thread = threading.Thread(
-            target=self.audio_player_worker, args=(audio_queue, self.model.sr)
+            target=self.audio_player_worker, args=(self._audio_queue, self.model.sr)
         )
         audio_thread.daemon = True
         audio_thread.start()
@@ -120,7 +122,7 @@ class ChatterboxTTS:
 
         while True:
             try:
-                if audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
+                if self._audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
                     print(
                         "INFO: Waiting audio to be played before processing more text chunk"
                     )
@@ -138,7 +140,7 @@ class ChatterboxTTS:
                     continue
 
                 if text_chunk is None:
-                    audio_queue.join()
+                    self._audio_queue.join()
                     self._loop.call_soon_threadsafe(
                         self._output_queue.put_nowait, TTSEndEvent.create(role)
                     )
@@ -161,11 +163,30 @@ class ChatterboxTTS:
                 ):
                     print(f"Chunk time = {time.time() - initial_time}")
 
-                    audio_queue.put(audio_chunk.clone())
+                    self._audio_queue.put(audio_chunk.clone())
 
             except Exception as e:
                 print(f"ERROR: During TTS generation: {e}")
                 traceback.print_exc()
+
+    def clear_queues(self):
+        while not self.input_event_queue.empty():
+            try:
+                self.input_event_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+        while not self._audio_queue.empty():
+            try:
+                self._audio_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        while not self._output_queue.empty():
+            try:
+                self._output_queue.get_nowait()
+            except queue.Empty:
+                break
 
     async def events(self):
         while True:

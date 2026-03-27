@@ -48,6 +48,7 @@ class EventContext:
 
     stt_output_event_queue: asyncio.Queue[STTEvent]
     tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None]
+    tts: ChatterboxTTS
 
 
 class STTEventHandler:
@@ -58,9 +59,9 @@ class STTEventHandler:
             print(
                 f"Stopping audio player. Role speaking = {context.turn_manager.current_turn}"
             )
-            # context.tts.audio_player_stop = True
             print(f"sd.get_stream() {sd.get_stream()}")
             sd.get_stream().abort()
+            context.tts.clear_queues()
             current_role = (
                 Role.TEACHER
                 if context.turn_manager.current_turn == Turn.TEACHER
@@ -84,8 +85,6 @@ class STTEventHandler:
         write_event(context.server_writers[Role.TEACHER], turn_event)
 
         context.turn_manager.set_turn(Turn.TEACHER)
-        await asyncio.sleep(2.0)
-        # context.tts.audio_player_stop = False
 
 
 class TTSEndEventHandler:
