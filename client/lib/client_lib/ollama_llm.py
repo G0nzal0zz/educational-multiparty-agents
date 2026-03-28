@@ -6,15 +6,17 @@ from langchain_ollama import ChatOllama
 from client_lib.events import AgentChunkEvent, AgentEndEvent
 from client_lib.prompts import TTS_SYSTEM_PROMPT
 
-PHRASES_IN_CHUNK = 2
+PHRASES_IN_CHUNK = 1
 
 
 class OLlamaLLM:
     model: ChatOllama
     system_prompt: str
 
-    def __init__(self, system_prompt: str):
-        self.model = ChatOllama(model="llama3.2:3b", temperature=0, num_gpu=0)
+    def __init__(
+        self, system_prompt: str, model: str = "llama3.2:3b", num_gpu: int | None = None
+    ):
+        self.model = ChatOllama(model=model, num_gpu=num_gpu)
         self.system_prompt = system_prompt
 
     def build_ollama_prompt(self, message: str):

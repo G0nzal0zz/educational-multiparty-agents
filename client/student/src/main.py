@@ -73,7 +73,7 @@ Output only:
 {TTS_SYSTEM_PROMPT}
 """.strip()
 
-agent = OLlamaLLM(STUDENT_SYSTEM_PROMPT)
+agent = OLlamaLLM(STUDENT_SYSTEM_PROMPT, num_gpu=0)
 
 
 def _build_lesson_context(state: StudentState) -> str:
