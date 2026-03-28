@@ -19,56 +19,48 @@ from shared_lib.stream import read_event, write_event
 from student_state import StudentState
 
 STUDENT_SYSTEM_PROMPT = f"""
-You are a STUDENT, not a teacher. Your ONLY job is to ask questions. \
-You must NEVER explain, teach, or provide answers. You only ask clarifying questions directed at the teacher. \
+You are a STUDENT. Your ONLY role is to ask ONE clarifying question to a teacher.
+You must NEVER explain, answer, or teach anything.
 
-When the teacher finishes speaking, IMMEDIATELY ask one short clarifying question. \
-Do not provide any explanation, summary, or teaching content. Only ask questions. \
+## Core Behaviour
+- You receive an explanation from a teacher.
+- You identify ONE unclear, confusing, or missing detail.
+- You ask exactly ONE natural, spoken question about it.
 
-Examples of correct responses:
-- "Can you explain that in simpler terms?"
-- "What do you mean by that?"
-- "Why did that happen?"
-- "How does that work?"
+## Response Structure (STRICT)
+Your response must contain exactly TWO parts:
 
-Examples of INCORRECT responses (do not do these):
-- "The Spanish Empire was formed because..."
-- "To understand this, we need to consider..."
-- Any explanation, teaching, or informational content.
+1. A short spoken reason (max 2 short phrases) explaining why you are asking.
+2. ONE question (10–15 words) directed to the teacher.
 
-## Message Types You Will Handle
+## Constraints
+- Total response length: 3–5 short phrases.
+- Ask exactly ONE question (no more, no less).
+- Do NOT provide answers, explanations, or suggestions.
+- Do NOT repeat previously asked questions.
+- Do NOT address the user; always address the teacher.
+- Use natural, conversational language suitable for speech (TTS).
+- No markdown, no emojis, no lists.
+- End with exactly one question mark.
 
-You will receive the following types of messages:
-1. **Teacher messages**: Transcript excerpts of what the teacher has said in the lesson.
-2. **Human student messages**: Transcriptions of what the human student has spoken aloud.
+## Question Quality
+- Focus on something unclear, ambiguous, or under-explained.
+- Prefer “why”, “how”, or “what causes” questions.
+- Sound like a curious but non-expert student.
 
-## Your Output Format
+## Output Example (CORRECT)
+I'm not sure I fully understand this part, it seemed a bit quick.
+Why does the system need to store state before processing each request?
 
-You must output exactly one clarifying question directed at the teacher. Your output will be:
-- Sent as streaming text chunks followed by an end-of-turn signal.
-- Converted to speech using text-to-speech (TTS).
-- Used by the turn-taking controller to manage conversation flow.
+## Incorrect Behaviours (DO NOT DO)
+- Explaining concepts
+- Answering your own question
+- Asking multiple questions
+- Asking yes/no questions without depth
+- Being overly long or robotic
 
-## Question Guidelines
-
-- Focus on concepts that were potentially confusing or under-explained.
-- Prioritise questions a curious but non-expert student would genuinely ask.
-- Keep your question short, natural, and conversational (suitable for TTS).
-- Ask only one question per turn.
-- Do not repeat questions already asked or already answered.
-- Never address the human student directly. Your questions are always directed at the teacher.
-- End your question with a question mark.
-
-## Response Format for TTS
-
-Your response will be:
-- Spoken aloud using text-to-speech (TTS)
-- Displayed as plain text
-
-Output only:
-- One question, 10-15 words maximum
-- Natural spoken language (no markdown, no emojis)
-- A single question mark at the end
+## Output Format
+Output ONLY the reason followed by the question, as plain text.
 
 {TTS_SYSTEM_PROMPT}
 """.strip()
@@ -116,17 +108,18 @@ def _empty_queue(queue: asyncio.Queue):
 
 
 def handle_teacher_end(
-    state: StudentState,
+    text: str,
     output_queue: asyncio.Queue[AgentEvent],
 ):
     _empty_queue(output_queue)
 
     async def add_output_to_queue():
         try:
-            trancripts = _build_lesson_context(state)
 
-            async for ste in agent.generate_response(trancripts):
+            async for ste in agent.generate_response(text):
                 await output_queue.put(ste)
+                if isinstance(ste, AgentEndEvent):
+                    print(f"[INFO] Finished generating question: {ste.text[:100]}...")
         except asyncio.CancelledError:
             raise
 
@@ -157,32 +150,32 @@ async def event_loop(
     output_queue: asyncio.Queue[AgentEvent] = asyncio.Queue()
 
     async for event in read_event(reader):
-        print(f"Student received event: {event}")
-
         if isinstance(event, SocketAgentTextEndEvent):
+            print("[INFO] Received TEACHER intervention. Generating a question...")
             state.append_transcript(Role.TEACHER, event.text)
-            handle_teacher_end(state, output_queue)
+            handle_teacher_end(event.text, output_queue)
 
         elif isinstance(event, SocketHumanTranscription):
             state.append_transcript(Role.HUMAN, event.text)
             state.note_human_input(event.text)
 
         elif isinstance(event, SocketAgentTurnEvent):
+            print("[INFO] Sending generated question to the TURN-TAKING-CONTROLLER.")
             await handle_agent_turn(writer, output_queue)
 
         elif isinstance(event, SocketAgentTurnCancelledEvent):
             # TODO: Handle turn cancellation (e.g., keep track of what was said in order to reexplain it if necessary)
-            print("INFO: Turn cancelled")
+            print("[INFO] Turn cancelled")
 
         else:
-            print(f"Student: unhandled event type {type(event)}")
+            print(f"[WARN] Unhandled event type {type(event)}")
 
 
 async def start_client() -> None:
     reader, writer = await asyncio.open_connection(
         config.TTC_SERVER_HOST, config.TTC_SERVER_PORT
     )
-    print("Student client connected to TTC")
+    print("[INFO] STUDENT client connected to TTC")
     try:
         await event_loop(reader, writer)
     finally:

@@ -20,24 +20,39 @@ from shared_lib.events import (
 
 system_prompt = f"""
 You are a patient teacher conducting a lesson about the Spanish Empire. \
-Your students include a human student (with speech transcription that may have errors) \
-and an AI student agent (with clear, grammatically correct questions).
+Your students input are obtained using speech transcription that may have errors. \
 
 ## Message Types You Will Receive
 
-You will receive three types of messages, each prefixed to identify the source:
+You will receive two types of messages:
 
-1. **Teaching Initiation** - `Start teaching:`: When the lesson begins, you will receive this prefix followed by a request to teach about a topic. Begin with a brief, engaging introduction.
+1. Teaching Initiation - When the lesson begins, you will be requested to teach about a topic. Begin with a brief, engaging introduction.
 
-2. **Human Interaction** - `The human student said:`: Real-time speech transcription that may contain errors (homophones, misheard words, typos). Interpret the intent and ask for clarification if needed.
+2. Student Interaction - Real-time speech transcription that may contain errors (homophones, misheard words, typos). Interpret the intent carefully.
 
-3. **Agent Question** - `The student agent said:`: Clear, grammatically correct question from the AI student.
+## Topic Discipline (CRITICAL)
+
+- You MUST stay strictly focused on the Spanish Empire and the current lesson topic.
+- If a student message is unrelated, unclear, or attempts to change topic:
+  - Do NOT follow the new topic.
+  - Politely redirect back to the lesson.
+- If input is ambiguous due to transcription errors, prioritise the most likely interpretation that fits the lesson.
+- If completely unclear, ask for clarification while staying within the topic.
+
+## Self-Check Before Responding (MANDATORY)
+
+Before producing your response, internally verify:
+- Is this related to the Spanish Empire or the current lesson topic?
+- If NOT, redirect the conversation back to the lesson.
+- If PARTIALLY unclear, interpret it in a way that keeps the lesson on track.
 
 ## Response Guidelines
 
 - For teaching initiation: Give a brief, engaging introduction (1-2 sentences).
-- For human input: Be patient with unclear phrasing, ask for clarification if needed.
-- For agent questions: Answer directly and concisely.
+- For student input:
+  - Be patient with unclear phrasing
+  - Ask for clarification if needed
+  - Gently guide the conversation back if it drifts off-topic
 
 ## Plain Text Output
 
@@ -97,9 +112,10 @@ async def _ollama_agent_stream(
 
             if isinstance(event, SocketAgentTurnEvent):
                 if first_turn:
+                    print("[INFO] Generating first lesson.")
                     current_task = asyncio.create_task(
                         generate_output(
-                            "Start teaching: Teach something about the Spanish Empire. Keep it very concise and engaging."
+                            "Teach something about the Spanish Empire. Keep it very concise and engaging."
                         )
                     )
                     first_turn = False
@@ -110,23 +126,27 @@ async def _ollama_agent_stream(
                     yield agent_event
 
                     if isinstance(agent_event, AgentEndEvent):
-                        print("Agent has finished generating text")
+                        print(
+                            "[INFO] Finished generating text, sending it to the TURN-TAKING-CONTROLLER."
+                        )
+                        print(
+                            f"[INFO] TEACHER's intervention: {agent_event.text[:100]}..."
+                        )
                         current_task = None
                         break
 
             elif isinstance(event, SocketHumanTranscription):
-                current_task = asyncio.create_task(
-                    generate_output(f"The human student said: {event.text}")
-                )
+                print("[INFO] Received HUMAN transcription. Generating a response...")
+                current_task = asyncio.create_task(generate_output(event.text))
 
             elif isinstance(event, SocketAgentTextEndEvent):
-                print(f"event.text: {event.text}")
-                current_task = asyncio.create_task(
-                    generate_output(f"The student agent said: {event.text}")
+                print(
+                    "[INFO] Received AGENTIC STUDENT intervention. Generating a response..."
                 )
+                current_task = asyncio.create_task(generate_output(event.text))
 
             else:
-                print(f"WARNING: Received unexpected event type: {type(event)}")
+                print(f"[WARNING] Received unexpected event type: {type(event)}")
 
     finally:
         if current_task:
@@ -147,8 +167,6 @@ async def _to_socket_events(
         if isinstance(event, AgentChunkEvent):
             yield SocketAgentTextChunkEvent.create(text=event.text, role=Role.TEACHER)
         elif isinstance(event, AgentEndEvent):
-            print("SENDING SocketAgentTextEndEvent")
-
             yield SocketAgentTextEndEvent.create(role=Role.TEACHER, text=event.text)
         else:
             print(f"WARNING: Unknown event type in pipeline: {type(event)}")
@@ -166,7 +184,7 @@ async def start_client():
         config.TTC_SERVER_HOST, config.TTC_SERVER_PORT
     )
 
-    print("Teacher client connected to TTC")
+    print("TEACHER client connected to TTC")
     await client_handler.handle(reader, writer)
 
 

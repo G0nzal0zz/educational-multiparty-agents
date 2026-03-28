@@ -87,7 +87,6 @@ async def server_listener(
     reader: asyncio.StreamReader, queue: asyncio.Queue[SocketServerEvent]
 ):
     async for event in read_event(reader):
-        print(f"[INFO] RECEIVED event in TTC: {event}")
         if isinstance(event, SocketClientEvent):
             print("[WARN] Received SocketClientEvent in the client")
             continue
@@ -97,7 +96,6 @@ async def server_listener(
 async def tts_listener(tts: ChatterboxTTS, queue: asyncio.Queue[TTSEvent]):
     tts.start()
     async for event in tts.events():
-        print(f"INFO: TTS generated an event: {event}")
         await queue.put(event)
 
 

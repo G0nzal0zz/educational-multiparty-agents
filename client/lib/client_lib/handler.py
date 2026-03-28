@@ -24,7 +24,7 @@ class ClientHandler:
         self, reader: asyncio.StreamReader
     ) -> AsyncGenerator[SocketEvent]:
         async for event in read_event(reader):
-            print(f"INFO: Received event: {event}")
+            # print(f"INFO: Received event: {event}")
             yield event
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
@@ -33,7 +33,7 @@ class ClientHandler:
         try:
             async for event in output_stream:
                 if not isinstance(event, SocketServerEvent):
-                    print("ERROR: Tried to send an invalid event to the server")
+                    print("[ERROR] Tried to send an invalid event to the server")
                     continue
                 dict = event_to_dict(event)
                 json_data = json.dumps(event_to_dict(event)) + "\n"
@@ -45,7 +45,6 @@ class ClientHandler:
         except asyncio.CancelledError:
             raise
         except Exception:
-            print("client error:")
             traceback.print_exc()
         finally:
             writer.close()

@@ -39,7 +39,6 @@ class OLlamaLLM:
                 phrases_in_chunk = phrases_in_chunk + 1
 
             if phrases_in_chunk >= PHRASES_IN_CHUNK:
-                print(f"Sending AgentChunkEvent: {chunk}")
                 yield AgentChunkEvent.create(chunk)
                 chunk = ""
                 phrases_in_chunk = 0
@@ -47,5 +46,4 @@ class OLlamaLLM:
         if len(chunk) > 0:
             yield AgentChunkEvent.create(chunk)
 
-        print(f"Sending AgentEndEvent: {response}")
         yield AgentEndEvent.create(response)

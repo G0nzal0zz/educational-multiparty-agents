@@ -112,11 +112,9 @@ class WhisperSTT:
 
                     if not chunk or not any(c.isalnum() for c in chunk):
                         continue
-                    print("[STT] len(chunk): ", len(chunk))
 
                     # Emit partial chunk
                     await chunk_queue.put(chunk)
-                    print(f"[STT] Chunk created: {chunk}")
                     await output_queue.put(STTChunkEvent.create(chunk))
 
             except asyncio.CancelledError:

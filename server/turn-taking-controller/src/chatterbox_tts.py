@@ -1,13 +1,16 @@
 import asyncio
 import os
 import queue
+import random
 import threading
 import time
 import traceback
+from concurrent.futures import CancelledError
 from pathlib import Path
 
 import sounddevice as sd
 import torch
+import torchaudio
 from chatterbox.tts_turbo import ChatterboxTurboTTS, Conditionals
 from huggingface_hub import snapshot_download
 from shared_lib.events import Role, SocketAgentTextChunkEvent
@@ -25,6 +28,7 @@ AUDIO_QUEUE_MAX_WAIT = 1
 """Specifies the maximum number of items allowed in the audio queue
 before processing a new agent text chunk into audio."""
 REPO_ID = "ResembleAI/chatterbox-turbo"
+SAMPLES_DIR = "./voices/samples"
 
 
 class ChatterboxTTS:
@@ -58,10 +62,27 @@ class ChatterboxTTS:
             # Convert to numpy and play with sounddevice
             audio_np = audio_chunk.squeeze().numpy()
             sd.play(audio_np, sample_rate)
-            # sd.wait()  # Wait for this chunk to finish before returning
 
         except Exception as e:
             print(f"ERROR: Playing audio: {e}")
+
+    def play_audio_sample(self):
+        """Pick a random audio sample from voices/samples/ and queue it"""
+        try:
+            if not os.path.exists(SAMPLES_DIR):
+                print(f"[ERROR] Samples directory does not exist: {SAMPLES_DIR}")
+                return
+
+            sample_files = [f for f in os.listdir(SAMPLES_DIR) if f.endswith(".wav")]
+            if not sample_files:
+                print("[ERROR] No sample files found in voices/samples/")
+                return
+
+            sample_file = os.path.join(SAMPLES_DIR, random.choice(sample_files))
+            audio_sample, sr = torchaudio.load(sample_file)
+            self._audio_queue.put(audio_sample)
+        except Exception as e:
+            print(f"[ERROR] Playing audio sample: {e}")
 
     def _is_audio_playing(self):
         try:
@@ -83,11 +104,10 @@ class ChatterboxTTS:
                 self.play_audio_chunk(audio_chunk, sample_rate)
                 audio_queue.task_done()
             except Exception as e:
-                print(f"ERROR: Audio player: {e}")
+                print(f"ERROR: Audio player worker: {e}")
 
     def _generate_and_queue(self, text: str, audio_path: str | None):
         """Sync wrapper that runs model.generate and puts chunks in queue"""
-        print("INFO: Starting audio generation")
         try:
             for audio_chunk in self.model.generate(
                 text=text,
@@ -96,30 +116,23 @@ class ChatterboxTTS:
                 cfg_weight=0.5,
             ):
                 self._audio_queue.put(audio_chunk.clone())
-        except Exception as e:
+        except asyncio.CancelledError:
             if not self.input_event_queue.empty():
                 self.input_event_queue.get_nowait()
-            print(f"ERROR: During TTS generation: {e}")
-            traceback.print_exc()
-        finally:
-            print("INFO: Generation finished or cancelled")
+        except Exception as e:
+            print(f"[ERROR] During TTS generation: {e}")
 
     def stop_audio_player(self):
-        print("INFO: Stop audio player called")
         self.clear_queues()
         if self._generate_task and not self._generate_task.done():
-            print("INFO: Cancelling generation task")
             self._generate_task.cancel()
-        else:
-            print("INFO: No active generation task to cancel")
 
-        print("self.audio_thread.is_alive(): ", self.audio_thread.is_alive())
-
-        if self.audio_thread is None or self.audio_thread.is_alive() is False:
-            print("INFO: Audio thread not running")
+        # Clearing queues after cancelling generate_task to make sure
+        # no audio was added to the audio queue while cancelling the task.
+        self.clear_queues()
+        self._tts_end_event.set()
 
         sd.get_stream().abort()
-        print("INFO: Stopping audio player")
 
     def _chatterbox_build_student_conditionals(self) -> Conditionals | None:
         conds = None
@@ -155,38 +168,32 @@ class ChatterboxTTS:
         while True:
             try:
                 if self._audio_queue.qsize() >= AUDIO_QUEUE_MAX_WAIT:
-                    print(
-                        "INFO: Waiting audio to be played before processing more text chunk"
-                    )
-                    time.sleep(1)
+                    time.sleep(0.5)
                     continue
 
                 try:
                     text_chunk = self.input_event_queue.get_nowait()
                 except asyncio.QueueEmpty:
-                    time.sleep(0.1)
+                    time.sleep(0.5)
                     continue
 
                 if text_chunk is None:
                     self._audio_queue.put(None)
                     self._tts_end_event.wait()
-                    self._loop.call_soon_threadsafe(
-                        self._output_queue.put_nowait, TTSEndEvent.create(role)
-                    )
+                    self._output_queue.put_nowait(TTSEndEvent.create(role))
                     self._tts_end_event.clear()
-                    print("INFO: Audio finished playing")
                     continue
 
                 role = text_chunk.role
-                audio_path = None if role == Role.TEACHER else "./student_voice.wav"
+                audio_path = (
+                    None if role == Role.TEACHER else "./voices/student_voice.wav"
+                )
 
                 if conds:
                     self.model.conds = conds
 
                 initial_time = time.time()
-                print(
-                    f"INFO: Starting generation for text chunk: {text_chunk.text[:50]}..."
-                )
+
                 self._generate_task = asyncio.run_coroutine_threadsafe(
                     asyncio.to_thread(
                         self._generate_and_queue, text_chunk.text, audio_path
@@ -195,9 +202,9 @@ class ChatterboxTTS:
                 )
                 try:
                     self._generate_task.result()
-                except asyncio.CancelledError:
-                    print("INFO: Generation was cancelled")
-                print(f"INFO: Chunk generation time = {time.time() - initial_time}")
+                except CancelledError:
+                    print("[INFO] TTS was cancelled")
+                print(f"[INFO] Chunk generation time = {time.time() - initial_time}")
 
             except Exception as e:
                 print(f"ERROR: During TTS generation: {e}")
@@ -207,7 +214,6 @@ class ChatterboxTTS:
         while not self.input_event_queue.empty():
             try:
                 self.input_event_queue.get_nowait()
-                print("[TTS] Emptying input event queue ")
             except asyncio.QueueEmpty:
                 break
 
