@@ -17,54 +17,12 @@ from shared_lib.events import (
     SocketHumanTranscription,
     SocketServerEvent,
 )
+from shared_lib.utils import empty_queue
 
-system_prompt = f"""
-You are a patient teacher conducting a lesson about the Spanish Empire. \
-Your students input are obtained using speech transcription that may have errors. \
+from lesson import lesson_generator
+from prompt import EXPERIMENT_ONE_SYSTEM_PROMPT
 
-## Message Types You Will Receive
-
-You will receive two types of messages:
-
-1. Teaching Initiation - When the lesson begins, you will be requested to teach about a topic. Begin with a brief, engaging introduction.
-
-2. Student Interaction - Real-time speech transcription that may contain errors (homophones, misheard words, typos). Interpret the intent carefully.
-
-## Topic Discipline (CRITICAL)
-
-- You MUST stay strictly focused on the Spanish Empire and the current lesson topic.
-- If a student message is unrelated, unclear, or attempts to change topic:
-  - Do NOT follow the new topic.
-  - Politely redirect back to the lesson.
-- If input is ambiguous due to transcription errors, prioritise the most likely interpretation that fits the lesson.
-- If completely unclear, ask for clarification while staying within the topic.
-
-## Self-Check Before Responding (MANDATORY)
-
-Before producing your response, internally verify:
-- Is this related to the Spanish Empire or the current lesson topic?
-- If NOT, redirect the conversation back to the lesson.
-- If PARTIALLY unclear, interpret it in a way that keeps the lesson on track.
-
-## Response Guidelines
-
-- For teaching initiation: Give a brief, engaging introduction (1-2 sentences).
-- For student input:
-  - Be patient with unclear phrasing
-  - Ask for clarification if needed
-  - Gently guide the conversation back if it drifts off-topic
-
-## Plain Text Output
-
-Your response will be converted to speech and displayed as text. Always output:
-- Plain, readable text (no markdown, no emojis, no special characters)
-- Natural spoken language
-- Proper punctuation
-
-{TTS_SYSTEM_PROMPT}
-""".strip()
-
-agent = OLlamaLLM(system_prompt)
+agent = OLlamaLLM(EXPERIMENT_ONE_SYSTEM_PROMPT)
 
 
 async def _ollama_agent_stream(
@@ -102,6 +60,10 @@ async def _ollama_agent_stream(
             print("LLM generation cancelled")
             raise
 
+    async def generate_initial_output():
+        for chunk in lesson_generator():
+            await output.put(chunk)
+
     current_task = None
 
     try:
@@ -113,11 +75,7 @@ async def _ollama_agent_stream(
             if isinstance(event, SocketAgentTurnEvent):
                 if first_turn:
                     print("[INFO] Generating first lesson.")
-                    current_task = asyncio.create_task(
-                        generate_output(
-                            "Teach something about the Spanish Empire. Keep it very concise and engaging."
-                        )
-                    )
+                    await generate_initial_output()
                     first_turn = False
 
                 while True:
@@ -129,20 +87,20 @@ async def _ollama_agent_stream(
                         print(
                             "[INFO] Finished generating text, sending it to the TURN-TAKING-CONTROLLER."
                         )
-                        print(
-                            f"[INFO] TEACHER's intervention: {agent_event.text[:100]}..."
-                        )
+                        print(f"[INFO] TEACHER's intervention: {agent_event.text}")
                         current_task = None
                         break
 
             elif isinstance(event, SocketHumanTranscription):
                 print("[INFO] Received HUMAN transcription. Generating a response...")
+                empty_queue(output)
                 current_task = asyncio.create_task(generate_output(event.text))
 
             elif isinstance(event, SocketAgentTextEndEvent):
                 print(
                     "[INFO] Received AGENTIC STUDENT intervention. Generating a response..."
                 )
+                empty_queue(output)
                 current_task = asyncio.create_task(generate_output(event.text))
 
             else:

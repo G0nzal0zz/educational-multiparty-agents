@@ -1,6 +1,7 @@
 import asyncio
 import queue
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Awaitable, Callable, Literal, ParamSpec, TypeVar
 
 import sounddevice as sd
@@ -41,10 +42,16 @@ async def poll_callback(
     return False
 
 
+class Mode(Enum):
+    TEACHER_STUDENT = 1
+    TEACHER_ONLY = 2
+
+
 @dataclass
 class EventContext:
     turn_manager: TurnManager
     server_writers: dict[Role, asyncio.StreamWriter]
+    mode: Mode
 
     stt_output_event_queue: asyncio.Queue[STTEvent]
     tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None]
@@ -93,8 +100,10 @@ class TTSEndEventHandler:
     def handle(
         self, event: TTSEndEvent, context: EventContext
     ) -> Awaitable[None] | None:
-        if event.role == Role.TEACHER:
-            return self._handle_teacher_end(context)
+        if event.role == Role.TEACHER and context.mode is Mode.TEACHER_STUDENT:
+            return self._handle_teacher_end_mode_teacher_student(context)
+        elif event.role == Role.TEACHER and context.mode is Mode.TEACHER_ONLY:
+            return self._handle_teacher_end_mode_teacher_only(context)
         elif event.role == Role.STUDENT:
             return self._handle_student_end(context)
 
@@ -103,7 +112,9 @@ class TTSEndEventHandler:
             return True
         return False
 
-    async def _handle_teacher_end(self, context: EventContext) -> None:
+    async def _handle_teacher_end_mode_teacher_student(
+        self, context: EventContext
+    ) -> None:
         if context.turn_manager.current_turn != Turn.TEACHER:
             print("[WARN] Teacher finished speaking but it was not his turn.")
             return
@@ -125,6 +136,31 @@ class TTSEndEventHandler:
         context.turn_manager.set_turn(Turn.STUDENT)
         write_event(context.server_writers[Role.STUDENT], turn_event)
         print("[INFO] Teacher finished speaking. Setting TURN to STUDENT")
+
+    async def _handle_teacher_end_mode_teacher_only(
+        self, context: EventContext
+    ) -> None:
+        if context.turn_manager.current_turn != Turn.TEACHER:
+            print("[WARN] Teacher finished speaking but it was not his turn.")
+            return
+
+        context.turn_manager.set_turn(Turn.IDLE)
+
+        if await poll_callback(
+            config.USER_TURN_TIMEOUT,
+            0.1,
+            self._human_has_talked,
+            context,
+        ):
+            context.turn_manager.set_turn(Turn.HUMAN)
+            print("[INFO] Teacher finished speaking. Setting TURN to HUMAN")
+            return
+
+        turn_event = SocketAgentTurnEvent.create()
+
+        context.turn_manager.set_turn(Turn.TEACHER)
+        write_event(context.server_writers[Role.TEACHER], turn_event)
+        print("[INFO] Teacher finished speaking. Setting TURN to TEACHER")
 
     def _handle_student_end(self, context: EventContext) -> None:
         if context.turn_manager.current_turn != Turn.STUDENT:
@@ -160,6 +196,13 @@ class AgentTextEndHandler:
                 f"[WARN] {event.role.name} finished STREAMING text but it was not his turn."
             )
             return
+
+        if context.mode is Mode.TEACHER_ONLY:
+            # TODO: Send "randomised" pre-generated question to teacher.
+            question_event = SocketHumanTranscription.create(
+                "What is a confounding variable?"
+            )
+            write_event(context.server_writers[Role.TEACHER], question_event)
 
         context.tts_input_event_queue.put_nowait(None)
         writer_role = Role.TEACHER if event.role == Role.STUDENT else Role.STUDENT

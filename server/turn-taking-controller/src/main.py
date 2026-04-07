@@ -19,6 +19,7 @@ from event_handlers import (
     AgentTextChunkHandler,
     AgentTextEndHandler,
     EventContext,
+    Mode,
     STTEventHandler,
     TTSEndEventHandler,
 )
@@ -36,6 +37,7 @@ HANDLERS = {
 
 
 async def process_events(
+    mode: Mode,
     server_writer: dict[Role, asyncio.StreamWriter],
     server_event_queue: asyncio.Queue[SocketServerEvent],
     stt_output_event_queue: asyncio.Queue[STTEvent],
@@ -45,6 +47,7 @@ async def process_events(
 ):
     turn_manager = TurnManager()
     context = EventContext(
+        mode=mode,
         turn_manager=turn_manager,
         server_writers=server_writer,
         stt_output_event_queue=stt_output_event_queue,
@@ -99,7 +102,7 @@ async def tts_listener(tts: ChatterboxTTS, queue: asyncio.Queue[TTSEvent]):
         await queue.put(event)
 
 
-async def start(args, source):
+async def start(mode: Mode, args, source):
     server_event_queue: asyncio.Queue[SocketServerEvent] = asyncio.Queue()
     stt_output_event_queue: asyncio.Queue[STTEvent] = asyncio.Queue()
     tts_input_event_queue: asyncio.Queue[SocketAgentTextChunkEvent | None] = (
@@ -110,7 +113,11 @@ async def start(args, source):
     stt = WhisperSTT(args, source)
     tts = ChatterboxTTS(tts_input_event_queue)
 
-    server_writers: dict[Role, asyncio.StreamWriter] = {}
+    server_writers: dict[Role, asyncio.StreamWriter | None] = {
+        role: None for role in Role
+    }
+    server_writers[Role.STUDENT] = None
+
     count = 0
 
     stt_task = asyncio.create_task(user_listener(stt, stt_output_event_queue))
@@ -118,6 +125,7 @@ async def start(args, source):
 
     process_events_task = asyncio.create_task(
         process_events(
+            mode,
             server_writers,
             server_event_queue,
             stt_output_event_queue,
@@ -128,16 +136,23 @@ async def start(args, source):
     )
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-        if len(server_writers) == 0:
+        nonlocal count
+
+        client_connections = 2 if mode is Mode.TEACHER_STUDENT else 1
+
+        if count == 0:
             role = Role.TEACHER
         else:
             role = Role.STUDENT
-        nonlocal count
-        count = count + 1
-        if count == 2:
-            write_event(server_writers[Role.TEACHER], SocketAgentTurnEvent.create())
 
         server_writers[role] = writer
+
+        count = count + 1
+        if count == client_connections:
+            print("asdfaf")
+            write_event(server_writers[Role.TEACHER], SocketAgentTurnEvent.create())
+            print("aaaasdfaf")
+
         server_task = asyncio.create_task(server_listener(reader, server_event_queue))
 
         try:
@@ -162,6 +177,12 @@ async def start(args, source):
 
 async def main():
     parser = argparse.ArgumentParser(description="Turn Taking Controller Client")
+    _ = parser.add_argument(
+        "--mode",
+        default="teacher_student",
+        help="Application mode",
+        choices=["teacher_student", "teacher_only"],
+    )
     _ = parser.add_argument(
         "--model",
         default="medium",
@@ -224,7 +245,10 @@ async def main():
     else:
         source = sr.Microphone(sample_rate=16000)
 
-    await start(args, source)
+    parsed_mode = str(args.mode).upper()
+    mode = Mode[parsed_mode]
+
+    await start(mode, args, source)
 
 
 if __name__ == "__main__":

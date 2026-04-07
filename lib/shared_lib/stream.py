@@ -4,7 +4,10 @@ import json
 from shared_lib.events import SocketEvent, bytes_to_event, event_to_dict
 
 
-def write_event(writer: asyncio.StreamWriter, event: SocketEvent) -> None:
+def write_event(writer: asyncio.StreamWriter | None, event: SocketEvent) -> None:
+    if writer is None:
+        return
+
     event_dict = event_to_dict(event)
     event_bytes = (json.dumps(event_dict) + "\n").encode()
     writer.write(event_bytes)
