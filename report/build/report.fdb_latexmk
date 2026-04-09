@@ -1,14 +1,14 @@
 # Fdb version 4
-["bibtex build/report"] 1775581555.92778 "build/report.aux" "build/report.bbl" "build/report" 1775582213.27742 0
-  "./references.bib" 1775580700.47959 0 d41d8cd98f00b204e9800998ecf8427e ""
+["bibtex build/report"] 1775736148.34704 "build/report.aux" "build/report.bbl" "build/report" 1775736149.97346 0
+  "./references.bib" 1775583457.75166 1335 9df87a3c5755eda57949e0a1911a2e9d ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/bibtex/bst/base/apalike.bst" 1772380719 24635 604dafcc79f521a11ea73e506e1fbd98 ""
-  "build/report.aux" 1775582213.11117 8252 715585ea06aacfaf824033199247ce3f "pdflatex"
+  "build/report.aux" 1775736149.79207 9134 ab0620d4ec5c8c0e3c036974ec6b0ec7 "pdflatex"
   (generated)
   "build/report.bbl"
   "build/report.blg"
   (rewritten before read)
-["pdflatex"] 1775582212.57599 "/Users/mats/Desktop/F21CA Report/coursework/report/report.tex" "build/report.pdf" "report" 1775582213.27759 0
-  "/Users/mats/Desktop/F21CA Report/coursework/report/report.tex" 1775582212.40061 20662 be7ce6c03c0c5581b22e1985e59d28ea ""
+["pdflatex"] 1775736148.4574 "/Users/mats/Desktop/F21CA Report/coursework/report/report.tex" "build/report.pdf" "report" 1775736149.97371 0
+  "/Users/mats/Desktop/F21CA Report/coursework/report/report.tex" 1775736146.64588 21183 c8d559f00bc6d29f3bcd4853e270a358 ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/enc/dvips/base/8r.enc" 1772380719 4850 80dc9bab7f31fb78a000ccfed0e27cab ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/map/fontname/texfonts.map" 1772380719 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/fonts/map/pdftex/updmap/pdftex.map" 1772380719 5541360 f183aac233c4cd1e5ef882fcbe8e7096 ""
@@ -115,10 +115,13 @@
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/tex/latex/xcolor/xcolor.sty" 1772380719 55384 b454dec21c2d9f45ec0b793f0995b992 ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-dist/web2c/texmf.cnf" 1772380719 43633 14bbc273cebd985e64ab1a698333eaf9 ""
   "/opt/homebrew/Cellar/texlive/20260301/share/texmf-var/web2c/pdftex/pdflatex.fmt" 1772380719 3636956 5168b884cb430e6a6336cfea08fa659a ""
-  "build/report.aux" 1775582213.11117 8252 715585ea06aacfaf824033199247ce3f "pdflatex"
-  "build/report.bbl" 1775581556.00457 49 0eba253fc001332e731e8aba3f23127b "bibtex build/report"
-  "build/report.out" 1775582213.11224 7333 bc4fba785b638564b4a4eec061760a7e "pdflatex"
-  "report.tex" 1775582212.40061 20662 be7ce6c03c0c5581b22e1985e59d28ea ""
+  "build/report.aux" 1775736149.79207 9134 ab0620d4ec5c8c0e3c036974ec6b0ec7 "pdflatex"
+  "build/report.bbl" 1775736148.45165 241 e2a832c0664ecc2a61548b107b61a368 "bibtex build/report"
+  "build/report.out" 1775736149.79331 7333 bc4fba785b638564b4a4eec061760a7e "pdflatex"
+  "figures/systemarch.png" 1775674111.96616 263184 52b32a968a807c4a0512bdb76b72f2b4 ""
+  "figures/teacherarch.png" 1775673940.22616 196849 5a96d84d30fb66e9aafcbb800e5ef39c ""
+  "figures/teacherstudentarch.png" 1775673940.24669 269582 af5292ca9ef7096f94bd324a19d4805e ""
+  "report.tex" 1775736146.64588 21183 c8d559f00bc6d29f3bcd4853e270a358 ""
   (generated)
   "build/report.aux"
   "build/report.log"

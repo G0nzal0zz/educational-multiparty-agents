@@ -39,14 +39,14 @@
 \newcommand{\guidance}[1]{\ifguidance\textcolor{blue}{\small\textit{[#1]}}\fi}
 
 % --- Title ---
-\title{\Large\textbf{Your Report Title Here}}
+\title{\Large\textbf{Demonstrating vicarious learning through agentic student-teacher interactions}}
 
 \author{
-  Author One\textsuperscript{} and Author Two\textsuperscript{} and \\
+  \textsuperscript{} and Mats Kroneberg\textsuperscript{} and \\
   Author Three\textsuperscript{} and Author Four\textsuperscript{} \\[6pt]
   \textit{Conversational Agents Course -- Final Report} \\
   Heriot-Watt University, Edinburgh, United Kingdom \\
-  \texttt{\{a1, a2, a3, a4\}@hw.ac.uk}
+  \texttt{\{a1, mmk12, a3, a4\}@hw.ac.uk}
 }
 
 \date{}
@@ -190,7 +190,7 @@ and conclude with recommendations for future work (Section~\ref{sec:conclusions}
   Review the specific techniques your system uses (e.g.\ ASR models,
   LLM-based dialogue, slot filling, intent recognition). For each,
   discuss the state of the art and justify why you chose the approach
-  you did.}
+  you did. \cite{2011Cgp}}
 
 % Write technique review here.
 
@@ -244,6 +244,8 @@ and conclude with recommendations for future work (Section~\ref{sec:conclusions}
 
 \subsection{Architecture Overview}
 
+hello \cite{2011Cgp}
+
 \guidance{%
   Provide a high-level overview of the full system. Reference your
   architecture diagram (Figure~\ref{fig:architecture}). Explain how
@@ -251,10 +253,23 @@ and conclude with recommendations for future work (Section~\ref{sec:conclusions}
 
 \begin{figure*}[t]
   \centering
-  % \includegraphics[width=\textwidth]{architecture.png}
-  \fbox{\parbox{0.9\textwidth}{\centering\vspace{2cm}[System Architecture Diagram]\vspace{2cm}}}
+  \includegraphics[width=\textwidth]{figures/systemarch.png}
   \caption{Architecture of the proposed system.}
   \label{fig:architecture}
+\end{figure*}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.72\textwidth]{figures/teacherarch.png}
+  \caption{Sequence diagram of the teacher-only interaction workflow (Human, TTC Server, Teacher Client).}
+  \label{fig:seq_teacher}
+\end{figure*}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/teacherstudentarch.png}
+  \caption{Sequence diagram of the combined teacher--student interaction workflow (Human, TTC Server, Teacher Client, Student Client).}
+  \label{fig:seq_combined}
 \end{figure*}
 
 % Write architecture overview here.
