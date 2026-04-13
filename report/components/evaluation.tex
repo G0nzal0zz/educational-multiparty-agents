@@ -1,0 +1,117 @@
+\section{Evaluation}
+\label{sec:evaluation}
+% ============================================================
+% MARKING CRITERION: "Evaluation" [20 marks]
+%   - Evaluation methods and metrics discussed thoroughly
+%   - Appropriate evaluation plan
+%   - Evaluation method clear and sensible
+%   - Results / conclusions presented clearly
+
+\guidance{%
+  MARKING: This section is worth 20 marks. The marker will check:
+  (1) that evaluation methods and metrics are discussed thoroughly,
+  (2) that you had an appropriate evaluation plan, (3) that the method
+  is clear and sensible, and (4) that results and conclusions are
+  presented clearly. Use tables and figures to present results.
+  Interpret your results --- do not just state numbers.}
+
+Briefly introduce your evaluation strategy, the scenario(s) tested, and any datasets used.
+
+\subsection{Intrinsic Evaluation}
+\label{sec:intrinsic}
+
+\guidance{%
+  Describe the intrinsic evaluation: what was measured, what data was
+  used (e.g.\ dataset, number of test items), and what metrics were
+  applied. Define each metric with a formula if appropriate.}
+
+% Define your metrics:
+% \begin{equation}
+%   \text{MetricName} = \frac{\text{Numerator}}{\text{Denominator}}
+%   \label{eq:metric}
+% \end{equation}
+
+\subsubsection{Results}
+
+\guidance{%
+  Present intrinsic results clearly in a table. Interpret them ---
+  what do they tell you about your system's performance? Compare with
+  baselines or prior work where possible.}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Condition A} & \textbf{Condition B} \\
+\midrule
+Metric 1  & 0.000 & 0.000 \\
+Metric 2  & 0.000 & 0.000 \\
+Metric 3  & 0.000 & 0.000 \\
+\bottomrule
+\end{tabular}
+\caption{Intrinsic evaluation results.}
+\label{tab:intrinsic_results}
+\end{table}
+
+% Interpret the results here.
+
+
+\subsection{Extrinsic Evaluation}
+\label{sec:extrinsic}
+
+\guidance{%
+  Describe your extrinsic evaluation plan: participant recruitment,
+  study procedure, ethical approval, and any measures taken to ensure
+  data quality (e.g.\ attention checks, exclusion criteria).}
+
+\subsubsection{Task Performance}
+
+\guidance{%
+  Report objective task-level results: task success rate, number of
+  turns, slot-filling accuracy, dialogue efficiency, etc.}
+
+% Write task performance results here.
+
+\subsubsection{Behavioural Analysis}
+
+\guidance{%
+  If applicable, analyse how the system handled specific user behaviours
+  (e.g.\ pauses, self-corrections, interruptions). Present in a table.}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Behaviour} & \textbf{Occurrences} & \textbf{Success Rate} \\
+\midrule
+Behaviour A & 0 & 0\% \\
+Behaviour B & 0 & 0\% \\
+Behaviour C & 0 & 0\% \\
+\bottomrule
+\end{tabular}
+\caption{Success rates for handling different behaviours.}
+\label{tab:behaviour_results}
+\end{table}
+
+\subsubsection{Subjective Evaluation}
+
+\guidance{%
+  Report questionnaire results. Describe the instrument (e.g.\
+  Godspeed, Likert scales), validity checks (KMO, Cronbach's alpha),
+  and statistical tests used. Present frequencies and averages with
+  figures if possible.}
+
+% Write subjective evaluation results here.
+
+\subsection{Discussion of Results}
+
+\guidance{%
+  Tie all evaluation results together. What do the intrinsic and
+  extrinsic results tell you collectively? Were there any surprising
+  findings? What are the limitations of your evaluation? This is
+  where you demonstrate clear and sensible interpretation --- a key
+  part of the marking criterion.}
+
+% Write discussion here.
