@@ -27,7 +27,7 @@
   understand the rest of the review (e.g.\ how humans process language,
   key terminology, the domain your system operates in).}
 
-% Write background here.
+For nearly 2 decades, the field of spoken dialogue systems (SDS) has been investigated in the context of education.
 
 \subsection{Related Systems and Architectures}
 \label{sec:related_systems}
@@ -90,6 +90,23 @@
 \guidance{%
   Review how systems like yours are typically evaluated. This motivates
   and justifies the evaluation approach you will describe later.}
+  
+
+\subsection{Summary}
+(add references. )
+Our system occupies a unique position at the intersection of three research 
+traditions: (1) the long-established dialogue-based Intelligent Tutoring 
+Systems tradition (SCoT, AutoTutor) with its emphasis on spoken interaction, 
+pedagogical structure, and student modelling; (2) the recent LLM-based chatbot-for-education 
+wave, which brings fluent natural language generation but typically lacks pedagogical 
+scaffolding and operates in text-only, single-agent, dyadic modes; and (3) the vicarious/fictive 
+dialogue paradigm (Driscoll et al., 2003; Piwek et al., 2007; Aylett et al., 2024), which 
+demonstrates that overhearing pedagogically structured dialogue between agents improves 
+learning outcomes. By combining a multi-agent LLM architecture (teacher + student) with a 
+real-time spoken turn-taking controller, structured pedagogical content, and the potential for 
+human learners to participate in or overhear the dialogue, our system bridges the gap between 
+the unstructured flexibility of LLM chatbots and the rigorous but inflexible design of 
+traditional conversational tutoring agents.
 
 \subsubsection{Intrinsic Evaluation}
 
