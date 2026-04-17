@@ -4,24 +4,38 @@
 % MARKING CRITERION: "Abstract, Aims, Objectives and Project Description" [10 marks]
 %   - Research aims of project are clear
 
-\guidance{%
-  MARKING: The introduction also contributes to the ``Aims, Objectives and
-  Project Description'' criterion (10 marks). Make the research aims and
-  objectives of the project unmistakably clear. The marker will look for:
-  (a) a well-motivated problem statement, (b) explicit research aims /
-  objectives, (c) a summary of the approach taken, and (d) a roadmap of
-  the report.}
+%\guidance{%
+%  MARKING: The introduction also contributes to the ``Aims, Objectives and
+%  Project Description'' criterion (10 marks). Make the research aims and
+%  objectives of the project unmistakably clear. The marker will look for:
+%  (a) a well-motivated problem statement, (b) explicit research aims /
+%  objectives, (c) a summary of the approach taken, and (d) a roadmap of
+%  the report.}
 
 \subsection{Problem Statement and Motivation}
+While LLM-based educational agents offer high linguistic fluency, 
+most existing systems rely on dyadic (one-on-one) text interactions that fail to capture the social dynamics of classroom learning. 
+A key pedagogical gap lies in the absence of vicarious learning, the process where students gain knowledge by observing interactions between others. 
+Passive learners often struggle to identify their own knowledge gaps, a problem exacerbated by the cognitive load of managing a dialogue. 
+By moving away from text-only interfaces toward a triadic, real-time spoken "fictive dialogue", 
+we can simulate a more natural and effective learning environment that triggers deeper reflection through agentic exchanges.
 
 % Describe the broader context and why this problem matters.
 % What gap or need does your work address?
 
 \subsection{Research Aims and Objectives}
+The primary aim of this project is to demonstrate how a multi-agent architecture can foster vicarious learning through autonomous student-teacher interactions.
+The specific objectives are:
+\begin{enumerate}[noitemsep, leftmargin=*]
+  \item To develop a Teacher Agent capable of delivering structured, pedagogically sound content via a spoken channel.
+  \item To implement an autonomous Student Agent that mimics human curiosity by interjecting with clarifying questions.
+  \item To integrate low-latency speech technologies (Whisper STT and Chatterbox TTS) to manage a fluid triadic interaction.
+  \item To evaluate the impact of a "synthetic peer" on user engagement and conceptual retention through controlled human testing.
+\end{enumerate}
 
-\guidance{%
-  State your aims and objectives explicitly. Consider using a short
-  enumerated list so the marker can see them at a glance.}
+%\guidance{%
+%  State your aims and objectives explicitly. Consider using a short
+%  enumerated list so the marker can see them at a glance.}
 
 % Example:
 % The aims of this project are:
@@ -38,4 +52,3 @@ In the following sections, we discuss previous work (Section~\ref{sec:previous_w
 present the system design and architecture (Section~\ref{sec:design}),
 present our evaluation and results (Section~\ref{sec:evaluation}),
 and conclude with recommendations for future work (Section~\ref{sec:conclusions}).
-
