@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.4.16)  16 APR 2026 21:13
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2026.4.16)  17 APR 2026 23:44
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -510,48 +510,60 @@ Package caption Info: End \AtBeginDocument code.
 LaTeX Font Info:    Trying to load font information for T1+pcr on input line 54.
  (/usr/share/texlive/texmf-dist/tex/latex/psnfss/t1pcr.fd
 File: t1pcr.fd 2001/06/04 font definitions for T1/pcr.
-) (./components/abstract.tex) (./components/introduction.tex) (./components/previous_work.tex [1
+) (./components/abstract.tex) (./components/introduction.tex
+Underfull \hbox (badness 6461) in paragraph at lines 32--33
+[]\T1/ptm/m/n/10.95 To in-te-grate low-latency speech tech-nolo-gies
+ []
 
-{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}]) (./components/system_design.tex
-<figures/systemarch.png, id=175, 954.56625pt x 558.085pt>
+) (./components/previous_work.tex [1
+
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}{/usr/share/texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}]) (./components/system_design.tex [2]
+
+Package natbib Warning: Citation `2011Cgp' on page 3 undefined on input line 20.
+
+<figures/systemarch.png, id=243, 993.7125pt x 563.10374pt>
 File: figures/systemarch.png Graphic file (type png)
 <use figures/systemarch.png>
 Package pdftex.def Info: figures/systemarch.png  used on input line 29.
-(pdftex.def)             Requested size: 483.69687pt x 282.78871pt.
-<figures/teacherarch.png, id=177, 739.76375pt x 630.355pt>
+(pdftex.def)             Requested size: 483.69687pt x 274.0931pt.
+<figures/teacherarch.png, id=245, 739.76375pt x 630.355pt>
 File: figures/teacherarch.png Graphic file (type png)
 <use figures/teacherarch.png>
 Package pdftex.def Info: figures/teacherarch.png  used on input line 36.
 (pdftex.def)             Requested size: 348.26233pt x 296.75743pt.
-<figures/teacherstudentarch.png, id=178, 755.82375pt x 824.07875pt>
+<figures/teacherstudentarch.png, id=246, 755.82375pt x 824.07875pt>
 File: figures/teacherstudentarch.png Graphic file (type png)
 <use figures/teacherstudentarch.png>
 Package pdftex.def Info: figures/teacherstudentarch.png  used on input line 43.
 (pdftex.def)             Requested size: 483.69687pt x 527.38345pt.
-) (./components/evaluation.tex [2]) (./components/conclusions.tex) (./report.bbl) [3 <./figures/systemarch.png>] [4 <./figures/teacherarch.png>] [5]
+) (./components/evaluation.tex [3] [4 <./figures/systemarch.png>]) (./components/conclusions.tex) (./report.bbl [5 <./figures/teacherarch.png>]) [6] [7]
 LaTeX Font Info:    Font shape `T1/pcr/m/it' in size <10.95> not available
-(Font)              Font shape `T1/pcr/m/sl' tried instead on input line 217.
- [6] [7 <./figures/teacherstudentarch.png>] (./report.aux)
+(Font)              Font shape `T1/pcr/m/sl' tried instead on input line 218.
+
+
+Package natbib Warning: There were undefined citations.
+
+[8] [9 <./figures/teacherstudentarch.png>] (./report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `report.out' has not changed.
-(rerunfilecheck)             Checksum: 3BDCA2569282E6B395B604F35ACCCCC8;6266.
+(rerunfilecheck)             Checksum: D2A34291516BFB549B6BCF8396FE0472;5536.
  ) 
 Here is how much of TeX's memory you used:
- 13366 strings out of 474222
- 209013 string characters out of 5748733
+ 13440 strings out of 474222
+ 210667 string characters out of 5748733
  1944975 words of memory out of 5000000
- 35377 multiletter control sequences out of 15000+600000
- 596410 words of font info for 81 fonts, out of 8000000 for 9000
+ 35427 multiletter control sequences out of 15000+600000
+ 603072 words of font info for 89 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,10n,79p,360b,769s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrro8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
-Output written on report.pdf (7 pages, 500225 bytes).
+ 75i,10n,79p,813b,895s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/courier/ucrro8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmb8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/times/utmri8a.pfb>
+Output written on report.pdf (9 pages, 537281 bytes).
 PDF statistics:
- 255 PDF objects out of 1000 (max. 8388607)
- 227 compressed objects within 3 object streams
- 54 named destinations out of 1000 (max. 500000)
- 320 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 342 PDF objects out of 1000 (max. 8388607)
+ 307 compressed objects within 4 object streams
+ 72 named destinations out of 1000 (max. 500000)
+ 296 words of extra memory for PDF output out of 10000 (max. 10000000)
 

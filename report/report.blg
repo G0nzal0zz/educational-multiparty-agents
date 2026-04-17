@@ -3,47 +3,48 @@ Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
 The top-level auxiliary file: report.aux
 The style file: apalike.bst
 Database file #1: references.bib
-Warning--to sort, need author, editor, or key in 2011Cgp
-Warning--empty author and editor in 2011Cgp
-You've used 1 entry,
+Warning--I didn't find a database entry for "2011Cgp"
+Warning--empty booktitle in pon-barry2004scot
+Warning--can't use both author and editor fields in Sydorenko2025
+You've used 16 entries,
             1935 wiz_defined-function locations,
-            480 strings with 3833 characters,
-and the built_in function-call counts, 285 in all, are:
-= -- 27
-> -- 0
-< -- 0
-+ -- 0
-- -- 0
-* -- 24
-:= -- 47
-add.period$ -- 4
-call.type$ -- 1
-change.case$ -- 5
-chr.to.int$ -- 1
-cite$ -- 4
-duplicate$ -- 16
-empty$ -- 31
-format.name$ -- 0
-if$ -- 59
+            591 strings with 8054 characters,
+and the built_in function-call counts, 8107 in all, are:
+= -- 789
+> -- 401
+< -- 11
++ -- 137
+- -- 137
+* -- 683
+:= -- 1354
+add.period$ -- 55
+call.type$ -- 16
+change.case$ -- 141
+chr.to.int$ -- 16
+cite$ -- 18
+duplicate$ -- 323
+empty$ -- 540
+format.name$ -- 157
+if$ -- 1654
 int.to.chr$ -- 1
 int.to.str$ -- 0
-missing$ -- 1
-newline$ -- 8
-num.names$ -- 0
-pop$ -- 5
+missing$ -- 17
+newline$ -- 83
+num.names$ -- 54
+pop$ -- 146
 preamble$ -- 1
-purify$ -- 5
+purify$ -- 142
 quote$ -- 0
-skip$ -- 9
+skip$ -- 244
 stack$ -- 0
-substring$ -- 13
-swap$ -- 1
-text.length$ -- 0
+substring$ -- 515
+swap$ -- 83
+text.length$ -- 7
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 4
+type$ -- 94
 warning$ -- 2
-while$ -- 0
+while$ -- 63
 width$ -- 0
-write$ -- 16
-(There were 2 warnings)
+write$ -- 223
+(There were 3 warnings)
