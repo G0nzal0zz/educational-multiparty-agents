@@ -19,6 +19,26 @@
 \usepackage{enumitem}
 \usepackage{titlesec}
 \usepackage{xcolor}
+\usepackage{listings}
+
+\lstdefinelanguage{json}{
+    basicstyle=\ttfamily\small,
+    numbers=left,
+    numberstyle=\small,
+    stepnumber=1,
+    numbersep=8pt,
+    showstringspaces=false,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10},
+    string=[s]{"}{"},
+    stringstyle=\color{green!50!black},
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    commentstyle=\color{gray},
+    keywordstyle=\color{blue},
+    morekeywords={true,false,null}
+}
 
 % --- Title formatting ---
 \titleformat{\section}{\normalfont\large\bfseries}{\thesection}{1em}{}
@@ -53,6 +73,7 @@
 \maketitle
 
 \input{components/abstract.tex}
+
 
 % --- Begin two-column layout ---
 \begin{multicols}{2}
