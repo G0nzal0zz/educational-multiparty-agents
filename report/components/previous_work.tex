@@ -2,100 +2,100 @@
 \label{sec:previous_work}
 % ============================================================
 % MARKING CRITERION: "Literature Review" [40 marks]
-%   - Clarity / readability
-%   - Appropriateness / thoroughness of references and citations
-%   - Good and clear organisation
-%   - Critical analysis of the field (MSc only)
-%   - Commentary on applicability of technologies and methods used in
-%     emerging technologies and application areas (MSc only)
 
-\guidance{%
-  MARKING: This is the highest-weighted section at 40 marks. The marker
-  will assess: (1) clarity and readability of writing, (2) whether
-  references are appropriate, thorough and properly cited, (3) clear
-  logical organisation, (4) [MSc only] critical analysis of the field
-  --- do not just summarise papers but compare, contrast, and identify
-  gaps, and (5) [MSc only] commentary on how the reviewed technologies
-  apply to emerging application areas. Aim for a well-structured
-  narrative, not a list of paper summaries.}
 
-\subsection{Background and Context}
+\subsection{Dialogue, Vicarious Learning, and Educational Conversational Agents}
 \label{sec:background}
 
-\guidance{%
-  Set the scene. Explain foundational concepts the reader needs to
-  understand the rest of the review (e.g.\ how humans process language,
-  key terminology, the domain your system operates in).}
+For nearly two decades, spoken dialogue systems (SDS) have been
+investigated in educational contexts, particularly for intelligent
+tutoring \citep{litman2004itspoke, pon-barry2004scot} and language
+learning \citep{seneff-etal-2007-spoken, bibauw2019dialogue}, and more
+recently as conversational agents powered by large language models
+\citep{Sydorenko2025}. Dialogue has been demonstrated to be a more effective modality than plain
+text for knowledge retention \citep{ginns2013designing}, and merely
+\emph{overhearing} dialogue between agents has itself been shown to
+support learning better than listening to a monologue \citep{vicarious_learning}.
 
-% Write background here.
+This phenomenon, coined vicarious learning, has been investigated
+through "fictive dialogues": semi-scripted exchanges between virtual
+agents generated from a source text, where the learner is a passive
+listener rather than an active participant \citep{piwek2007t2d}.
+\citet{fictive_dialogs} extend this concept to a classroom
+language-learning Educational Conversational Agent (ECA) that
+alternates between teacher and peer roles. They find that more
+scripted agent and human-confederate exchanges improve comprehension, whereas
+direct agent-to-learner questioning degrades it.
+The multi-party configurations needed for designing unscripted agentic
+conversations remain a known open challenge for current systems
+\citep{aylett2023you, skantze2021turntaking}, primarily because
+realtime end-of-turn prediction, speaker detection and interruption
+handling all become critical in a non-deterministic dialogue. 
 
-\subsection{Related Systems and Architectures}
-\label{sec:related_systems}
+\subsection{LLM-based and Multi-Agent Tutors}
+\label{sec:llm_tutors}
 
-\guidance{%
-  Survey the main category of systems your work relates to. Describe the
-  evolution from earlier approaches to current ones. Cite key papers and
-  explain how each contributes to the field.}
+A recent systematic review of 36 educational chatbots finds that
+teaching agents and peer agents together dominate role assignments
+\citep{kuhail2023interacting}. This decomposition maps directly
+onto the agentic teacher and question-asking student configuration the
+present system adopts. However, empirical evidence on the pedagogical effects
+of the LLM-based variants of such systems is only
+beginning to accumulate. \citet{SpangenbergerPia2026CwaL}
+evaluate chat-based conversation with an LLM in education for
+sustainable development, and find that LLM chat engages both
+affective and cognitive processes relevant to
+learning, and results in knowledge gains comparable to reading the same
+material as text. This establishes LLM chat as a viable teaching
+medium, but does fall short in larger, structured tasks such as robust curricular sequencing and student modelling. 
+This underpinned the learning gains reported for earlier conversational intelligent tutoring systems such as AutoTutor \citep{graesser2016autotutor}.
 
-% Write related systems review here.
+A recent architectural response to recover the teaching
+structure, is by composing several specialised LLM agents rather than
+relying on a single chatbot or a scripted dialogue policy. The
+WikiHowAgent system of \citet{pei-etal-2025conversational}
+implements teacher, student, interaction-manager and evaluator
+agents at scale. \citet{shi-etal-2025-educationq} apply a similar teacher-student-evaluator 
+framework (EducationQ) to benchmark teaching ability across 14 LLMs. Both systems, however, place no
+human in the interactive loop, typically the human enters only as a
+post-hoc judge. Our work attempts to close this gap using a human learner, 
+embedded in realtime dialogue rather than generated text, that follows a similar student-teacher-evaluator role decompostion. 
 
-\subsubsection{Specific Paradigm or Framework}
 
-\guidance{%
-  Drill into the specific paradigm your system builds on (e.g.\
-  incremental processing, end-to-end models, retrieval-augmented
-  generation). Explain the framework, its key concepts, advantages
-  and limitations.}
+\subsection{Speech Interfaces for Educational Agents}
+\label{sec:speech_interfaces}
 
-% Write paradigm-specific review here.
+The few LLM-based ECAs that do operate in through speech
+typically pair their dialogue manager with a cloud-based speech I/O pipeline.
+\citet{fictive_dialogs}, for instance, integrate Deepgram's hosted
+ASR and TTS synthesis into a RASA dialogue agent.
+\citet{Sydorenko2025} identify recognition error and end-to-end
+latency as the two persistent bottlenecks for spoken educational
+agents. This is a concern espeacially relevant to realtime turn-taking
+\citep{skantze2021turntaking}. The present system adopts the same
+two-component STT/TTS split but runs both locally (using Whisper for STT,
+and Chatterbox for TTS). By doing this, we trade on-device compute for lower latency
+and no external dependency in the realtime loop, which addresses the key issues \citep{Sydorenko2025} for fluent spoken interaction.
 
-\subsubsection{Recent Developments}
+\subsection{Summary}
+\label{sec:prev_work_summary}
 
-\guidance{%
-  Cover the most recent and relevant work. This demonstrates thorough
-  and up-to-date engagement with the literature.}
-
-% Write recent work review here.
-
-\subsection{Key Techniques and Components}
-\label{sec:techniques}
-
-\guidance{%
-  Review the specific techniques your system uses (e.g.\ ASR models,
-  LLM-based dialogue, slot filling, intent recognition). For each,
-  discuss the state of the art and justify why you chose the approach
-  you did. \cite{2011Cgp}}
-
-% Write technique review here.
-
-\subsection{Critical Analysis and Emerging Applications}
-\label{sec:critical_analysis}
-
-\guidance{%
-  [MSc students: this sub-section is explicitly assessed. 4th-year
-  students will also benefit from including it.]
-  Synthesise the literature --- do not just summarise. Compare and
-  contrast the approaches reviewed. What are the open problems? Where
-  do current methods fall short?
-  %
-  Additionally, comment on applicability: how do the technologies and
-  methods discussed apply to emerging application areas (e.g.\
-  multimodal assistants, healthcare, education, accessibility)?}
-
-% Write critical analysis and emerging applications commentary here.
-
-\subsection{Evaluation Methods in the Literature}
-\label{sec:eval_literature}
-
-\guidance{%
-  Review how systems like yours are typically evaluated. This motivates
-  and justifies the evaluation approach you will describe later.}
-
-\subsubsection{Intrinsic Evaluation}
-
-% Review intrinsic metrics and methods from the literature.
-
-\subsubsection{Extrinsic Evaluation}
-
-% Review extrinsic metrics (objective and subjective) from the literature.
-
+Our system sits at the intersection of three research fields: the
+dialogue-based intelligent tutoring field
+\citep{litman2004itspoke, pon-barry2004scot} with its spoken,
+pedagogically-structured interaction. The recent LLM-based tutor
+research \citep{SpangenbergerPia2026CwaL, pei-etal-2025conversational},
+which contributes fluent generation and scalable multi-agent role
+decomposition but operates in text-only, typically restricted to one-to-one agent dialogues or monologues. 
+Lastly, the vicarious dialogue paradigm
+\citep{vicarious_learning, piwek2007t2d, fictive_dialogs}, which shows
+that overhearing pedagogically structured dialogue between agents
+improves learning. The system's central design move is to substitute
+the scripted human confederate of \citet{fictive_dialogs} with a
+second autonomous LLM agent. This serves as a novel combination of the teacher-learner agent
+decomposition of \citet{pei-etal-2025conversational} with the
+overhearing-learner stance of the fictive-dialogue tradition, over a
+realtime spoken channel. Closing this gap opens the door to emerging
+application areas such as spoken classroom assistants, 
+accessibility-focused tutors for low-literacy learners, multi-party
+language-learning environments, and healthcare communication training.

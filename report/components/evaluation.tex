@@ -1,118 +1,89 @@
-\section{Evaluation}
+\section{Experimental Design}
 \label{sec:evaluation}
-% ============================================================
-% MARKING CRITERION: "Evaluation" [20 marks]
-%   - Evaluation methods and metrics discussed thoroughly
-%   - Appropriate evaluation plan
-%   - Evaluation method clear and sensible
-%   - Results / conclusions presented clearly
 
-\guidance{%
-  MARKING: This section is worth 20 marks. The marker will check:
-  (1) that evaluation methods and metrics are discussed thoroughly,
-  (2) that you had an appropriate evaluation plan, (3) that the method
-  is clear and sensible, and (4) that results and conclusions are
-  presented clearly. Use tables and figures to present results.
-  Interpret your results --- do not just state numbers.}
+\subsection{Study Setup}
 
-Briefly introduce your evaluation strategy, the scenario(s) tested, and any datasets used.
+We ran a between-subjects experiment with two conditions. In the first, participants attended a spoken lesson delivered by the AI teacher while an AI peer student was also present. In the second, participants attended the same lesson with the teacher only. Both conditions covered the same topic: Simpson's Paradox. Participants were recruited informally among students at Heriot-Watt University, and each session lasted roughly 10 to 15 minutes. We collected 19 complete responses in total: 9 in the Teacher and AI peer group, and 10 in the Teacher only group.
 
-\subsection{Intrinsic Evaluation}
-\label{sec:intrinsic}
+\subsection{Questionnaire Design}
 
-\guidance{%
-  Describe the intrinsic evaluation: what was measured, what data was
-  used (e.g.\ dataset, number of test items), and what metrics were
-  applied. Define each metric with a formula if appropriate.}
+After their session, participants filled in a questionnaire with four parts. The first asked them to rate their prior familiarity with Simpson's Paradox on a 1 to 5 scale. The second collected Likert ratings on content clarity, engagement, pace, and post-session confidence. Participants in the Teacher and AI peer group also rated the peer student directly on helpfulness and classroom feel. The third part contained seven knowledge questions, ranging from basic recall to applied reasoning, plus two visual questions. The fourth part gathered open-ended qualitative feedback.
 
-% Define your metrics:
-% \begin{equation}
-%   \text{MetricName} = \frac{\text{Numerator}}{\text{Denominator}}
-%   \label{eq:metric}
-% \end{equation}
+\subsection{Analysis}
 
-\subsubsection{Results}
+We report group means and run independent-samples t-tests to compare the two conditions. Given the small sample sizes, no result should be treated as conclusive, and the t-tests are included primarily for completeness.
 
-\guidance{%
-  Present intrinsic results clearly in a table. Interpret them ---
-  what do they tell you about your system's performance? Compare with
-  baselines or prior work where possible.}
+
+\section{Results}
+\label{sec:results}
+
+\subsection{Prior Knowledge}
+
+Both groups started from a similar baseline: mean prior familiarity of 1.78 for the Teacher and AI peer group and 1.60 for the Teacher only group, confirming that most participants had little to no prior knowledge of Simpson's Paradox.
+
+\subsection{Learning Experience}
+
+Table~\ref{tab:experience} shows mean ratings and t-test results for both groups across the four learning experience items.
 
 \begin{table}[H]
 \centering
-\small
-\begin{tabular}{lcc}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
 \toprule
-\textbf{Metric} & \textbf{Condition A} & \textbf{Condition B} \\
+\textbf{Item} & \textbf{T+AI} & \textbf{T-only} & \textbf{t} & \textbf{p} \\
 \midrule
-Metric 1  & 0.000 & 0.000 \\
-Metric 2  & 0.000 & 0.000 \\
-Metric 3  & 0.000 & 0.000 \\
+Content clarity    & 4.22 & 4.00 & 0.506 & 0.620 \\
+Engagement         & 4.00 & 3.50 & 1.269 & 0.222 \\
+Pace               & 4.33 & 4.10 & 0.702 & 0.492 \\
+Post-conf.\        & 4.67 & 4.30 & 0.946 & 0.357 \\
 \bottomrule
 \end{tabular}
-\caption{Intrinsic evaluation results.}
-\label{tab:intrinsic_results}
+\caption{Mean learning experience ratings by condition (1--5 scale; T+AI $n=9$, T-only $n=10$).}
+\label{tab:experience}
 \end{table}
 
-% Interpret the results here.
+The Teacher and AI peer group rated their experience slightly higher across all four dimensions, with the largest gap in engagement (4.00 versus 3.50) and post-session confidence (4.67 versus 4.30). None of the differences reached statistical significance. Participants in the Teacher and AI peer group rated the peer student's helpfulness at 4.33 on average, and its contribution to classroom feel at 5.00, suggesting they found its presence genuinely useful even where the scores did not diverge significantly from the other group.
 
+\subsection{Knowledge Assessment}
 
-\subsection{Extrinsic Evaluation}
-\label{sec:extrinsic}
-
-\guidance{%
-  Describe your extrinsic evaluation plan: participant recruitment,
-  study procedure, ethical approval, and any measures taken to ensure
-  data quality (e.g.\ attention checks, exclusion criteria).}
-
-\subsubsection{Task Performance}
-
-\guidance{%
-  Report objective task-level results: task success rate, number of
-  turns, slot-filling accuracy, dialogue efficiency, etc.}
-
-% Write task performance results here.
-
-\subsubsection{Behavioural Analysis}
-
-\guidance{%
-  If applicable, analyse how the system handled specific user behaviours
-  (e.g.\ pauses, self-corrections, interruptions). Present in a table.}
+Table~\ref{tab:knowledge} reports correct answer counts per question and overall mean scores.
 
 \begin{table}[H]
 \centering
-\small
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Behaviour} & \textbf{Occurrences} & \textbf{Success Rate} \\
+\textbf{Question} & \textbf{T+AI} & \textbf{T-only} \\
 \midrule
-Behaviour A & 0 & 0\% \\
-Behaviour B & 0 & 0\% \\
-Behaviour C & 0 & 0\% \\
+Q9  Definition              & 8/9  & 7/10 \\
+Q10 Berkeley example        & 9/9  & 9/10 \\
+Q11 Confounding variables   & 7/9  & 7/10 \\
+Q12 Common misconception    & 5/9  & 4/10 \\
+Q13 Critical context        & 7/9  & 7/10 \\
+Q14 First step              & 8/9  & 9/10 \\
+Q15 Applied scenario        & 3/9  & 5/10 \\
+Q16 Visual identification   & 6/9  & 7/10 \\
+Q17 Practical example       & 6/9  & 8/10 \\
+\midrule
+\textbf{Mean /9}            & \textbf{6.67} & \textbf{6.30} \\
 \bottomrule
 \end{tabular}
-\caption{Success rates for handling different behaviours.}
-\label{tab:behaviour_results}
+\caption{Knowledge assessment results by condition ($t=0.382$, $p=0.707$; T+AI $n=9$, T-only $n=10$).}
+\label{tab:knowledge}
 \end{table}
 
-\subsubsection{Subjective Evaluation}
+Overall knowledge scores were similar between the two groups (74.1\% versus 70.0\%), and the t-test found no significant difference (t = 0.382, p = 0.707). Both groups performed well on definitional questions and struggled with the applied scenario (Q15) and the practical example (Q17), where the Teacher only group actually scored slightly higher. Answer confidence followed the same pattern as post-session confidence, with the Teacher and AI peer group rating slightly higher (3.89 versus 3.30, p = 0.190).
 
-\guidance{%
-  Report questionnaire results. Describe the instrument (e.g.\
-  Godspeed, Likert scales), validity checks (KMO, Cronbach's alpha),
-  and statistical tests used. Present frequencies and averages with
-  figures if possible.}
+\subsection{Qualitative Feedback}
 
-% Write subjective evaluation results here.
+Responses were broadly positive in both groups. The most consistent criticism was pacing: participants across both conditions found the speech too slow and mentioned that silences between turns broke immersion. Several also noted that the teacher jumped into technical content without a brief introduction, which made the opening harder to follow. In the Teacher and AI peer group, most participants either did not identify the peer as an AI during the session, or said it did not affect their experience when they did. A few noted the peer's questions were helpful. Recurring suggestions included faster TTS, a short contextual introduction before the lesson begins, and more interactive question slots for the human.
 
-\subsection{Discussion of Results}
+\subsection{Discussion}
 
-\guidance{%
-  Tie all evaluation results together. What do the intrinsic and
-  extrinsic results tell you collectively? Were there any surprising
-  findings? What are the limitations of your evaluation? This is
-  where you demonstrate clear and sensible interpretation --- a key
-  part of the marking criterion.}
+The results do not show a clear advantage for either condition in terms of knowledge scores or experience ratings. Both groups reached a similar level of understanding, and no t-test approached significance. The most plausible explanation is that the lesson itself was effective enough to produce consistent results regardless of condition, and that several of the knowledge questions were too straightforward to discriminate between groups. The harder applied questions (Q15, Q17) are more informative in this regard, and the Teacher only group actually performed marginally better on those, though the difference is small and within noise.
 
-% Write discussion here.
+Where the two conditions do differ more noticeably is in engagement and post-session confidence, with the Teacher and AI peer group rating both higher. This is consistent with what the vicarious learning hypothesis would predict: having a peer present may enrich the perceived experience even when objective test scores are equivalent. The peer student ratings (4.33 for helpfulness, 5.00 for classroom feel) support this reading.
 
+The main limitations are the small and informally recruited sample, the ceiling effect on simpler knowledge questions, and one participant who already knew the system, which biases their responses. A larger, more controlled study with pre-screened participants and improved TTS pacing would be needed to draw firmer conclusions.
