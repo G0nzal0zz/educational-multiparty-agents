@@ -65,13 +65,13 @@ embedded in realtime dialogue rather than generated text, that follows a similar
 \subsection{Speech Interfaces for Educational Agents}
 \label{sec:speech_interfaces}
 
-The few LLM-based ECAs that do operate in through speech
+The few LLM-based ECAs that do operate through speech
 typically pair their dialogue manager with a cloud-based speech I/O pipeline.
 \citet{fictive_dialogs}, for instance, integrate Deepgram's hosted
 ASR and TTS synthesis into a RASA dialogue agent.
 \citet{Sydorenko2025} identify recognition error and end-to-end
 latency as the two persistent bottlenecks for spoken educational
-agents. This is a concern espeacially relevant to realtime turn-taking
+agents. This is a concern especially relevant to realtime turn-taking
 \citep{skantze2021turntaking}. The present system adopts the same
 two-component STT/TTS split but runs both locally (using Whisper for STT,
 and Chatterbox for TTS). By doing this, we trade on-device compute for lower latency
@@ -80,10 +80,10 @@ and no external dependency in the realtime loop, which addresses the key issues 
 \subsection{Summary}
 \label{sec:prev_work_summary}
 
-Our system sits at the intersection of three research fields: the
+Our system sits at the intersection of three research fields: firstly, the
 dialogue-based intelligent tutoring field
 \citep{litman2004itspoke, pon-barry2004scot} with its spoken,
-pedagogically-structured interaction. The recent LLM-based tutor
+pedagogically-structured interaction. Secondly, the recent LLM-based tutor
 research \citep{SpangenbergerPia2026CwaL, pei-etal-2025conversational},
 which contributes fluent generation and scalable multi-agent role
 decomposition but operates in text-only, typically restricted to one-to-one agent dialogues or monologues. 
