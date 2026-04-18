@@ -5,9 +5,24 @@ To implement the proposed multy-party dialog project, we designed and orchestrat
 
 \subsection{Architecture Overview}
 
-As it can be seen in \autoref{fig:architectures}, the project is divided into 3 programs which work strategically together; Turn-taking Controller (TTC), Teacher and Student. The communication between the programs is based in a TCP socket connection where the TTC acts as the server and the Teacher and Student function as clients. The information which is transmitted through the sockets are serialized json objects containing events information, in \autoref{lst:json-event-example} an example of serialized JSON event can be seen.
+As it can be seen in \autoref{fig:architecture}, the project is divided into 3 programs which work strategically together; Turn-taking Controller (TTC), Teacher and Student. The communication between the programs is based in a TCP socket connection where the TTC acts as the server and the Teacher and Student function as clients. The information which is transmitted through the sockets are serialized json objects containing events information, in \autoref{tab:socket-events} a list of all the possible events is shown and in \autoref{lst:json-event-example} an example of serialized JSON event can be seen.
 
-
+\begin{table*}[htbp]
+\small
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Event} & \textbf{Sender} & \textbf{Receiver} & \textbf{Description} \\ \midrule
+\texttt{human\_transcription} & TTC & Teacher \& Student & Human speech transcription \\
+\texttt{agent\_turn} & TTC & Teacher \& Student & Signal for agent to start turn \\
+\texttt{agent\_turn\_cancelled} & TTC & Teacher \& Student & Turn cancelled (interrupted) \\
+\texttt{agent\_text\_chunk} & Teacher \& Student & TTC & Streamed text chunk from agent stream \\
+\texttt{agent\_text\_end} & Teacher \& Student & TTC & End of agent response \\
+\bottomrule
+\end{tabular}
+\caption{Socket events between TTC server and clients}
+\label{tab:socket-events}
+\end{table*}
 
 \begin{lstlisting}[
   language=json,
@@ -22,8 +37,6 @@ As it can be seen in \autoref{fig:architectures}, the project is divided into 3 
     "ts": 1713187200000
 }
 \end{lstlisting}
-
-
 
 \subsubsection{TTC}
 The TTC acts a the TCP server where the teacher and student establish connections to it. Furthermore, the TTC has 2 main roles. First, managing all the events happening in the system and taking decisions based on the status of the system. Second, handling all the information extracted from and trasmitted to the human. It is composed by 3 internal components:
@@ -60,30 +73,24 @@ This section will give an overview of the workflow of the system for both experi
 % TODO: Mention all the possible events that can be sent through the sockets
 
 \subsubsection{With peer student}
-\autoref{fig:seq_combined} shows the sequence diagram of the system. First, once both clients are connected to the TTC, the latter sends the \texttt{agent\_turn} to the Teacher which starts streaming a pre-generated initial lesson. Once the Teacher has finished streaming the lesson to the TTC, it emits a \texttt{agent\_text\_end} event signaling that it has finished streaming text. Afterwards, the TTC performs two actions in parallel; First, it starts bounces the \texttt{agent\_text\_end} event to the Student so the student can start generating its own possible intervention. While
+\label{sec:workflow_peer_student}
+
+\autoref{fig:seq_combined} illustrates the system's sequence diagram. The interaction begins once both clients connect to the TTC, which sends an \texttt{agent\_turn} event to the teacher to initiate streaming of a pre-generated lesson. As text chunks arrive from the teacher, the TTC converts them to audio via TTS and plays them immediately. When the teacher finishes streaming, it emits an \texttt{agent\_text\_end} event to signal completion. The TTC relays this event to the Student, enabling it to prepare a potential response based on the Teacher's content.
+
+After the audio playback concludes, the system allocates a 10-second response window. If the ASR detects and transcribes speech, a \texttt{human\_transcription} is sent to the Teacher. A brief acknowledgment audio is then played to allow the Teacher processing time. Conversely, if no speech is detected, the Student is prompted via an \texttt{agent\_turn} event to contribute its pre-generated text, which follows the same workflow as the initial Teacher input---including bouncing the \texttt{agent\_text\_end} event to the Teacher for response generation.
+
+Regardless of which branch executes, the Teacher must formulate a response to either the human or the student's contribution. This is signaled by sending an \texttt{agent\_turn} event, which instructs the Teacher to speak.
 
 \subsubsection{Without peer student}
+\label{sec:workflow_without_peer_student}
+\autoref{fig:seq_teacher} illustrates the simplified sequence diagram for the teacher-student interaction. The workflow mirrors \autoref{sec:workflow_peer_student} with two key differences:
 
-\autoref{fig:seq_combined} shows a sequence diagram of the teacher-student worfkflow.
+\begin{enumerate}[noitemsep, leftmargin=*]
+  \item The \texttt{agent\_text\_end} event is sent directly from the Teacher to the TTC without relaying to a Student agent, as there is no peer student in the system.
+  \item If no speech is detected during the 10-second response window, the Teacher automatically receives an \texttt{agent\_turn} event to continue elaborating on the taught topic, rather than waiting for a student agent response.
+\end{enumerate}
 
-
-\begin{table*}[htbp]
-\small
-\centering
-\begin{tabular}{llll}
-\toprule
-\textbf{Event} & \textbf{Sender} & \textbf{Receiver} & \textbf{Description} \\ \midrule
-\texttt{human\_transcription} & All Clients & TTC & Human speech transcription \\
-\texttt{agent\_text\_chunk} & TTC & All clients & Text chunk from agent stream \\
-\texttt{agent\_text\_end} & TTC & All clients & End of agent response \\
-\texttt{agent\_turn} & TTC & Client & Signal for agent to start turn \\
-\texttt{agent\_turn\_cancelled} & TTC & Client & Turn cancelled (interrupted) \\ \bottomrule
-\end{tabular}
-\caption{Socket events between TTC server and clients}
-\label{tab:socket-events}
-\end{table*}
-
-
+The core interaction loop remains identical: the Teacher streams text chunks, the TTC converts them to audio via TTS and plays them, and the human has an opportunity to respond. However, without the Student's pre-generated input branch, the system either processes the human's transcribed speech or prompts the Teacher to continue the lesson.
 
 \subsection{Technology Stack}
 
