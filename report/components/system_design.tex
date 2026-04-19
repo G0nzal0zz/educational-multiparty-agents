@@ -94,9 +94,9 @@ The core interaction loop remains identical: the Teacher streams text chunks, th
 This system leverages three core AI models to enable natural voice-based interaction: Automatic Speech Recognition (ASR), Text-to-Speech (TTS), and a Large Language Model (LLM).
 
 \subsubsection{ASR}
-\textbf{Whisper} (OpenAI) handles speech-to-text conversion. The system uses the \texttt{openai-whisper} library to transcribe microphone input in real-time. We use the \texttt{small} model (244M parameters). Since Whisper does not natively support streaming, we implemented a custom async pipeline that accumulates audio chunks, transcribes them incrementally, and uses silence detection to emit end-of-utterance events.
+\textbf{Whisper} (OpenAI) handles speech-to-text conversion. The system uses the \texttt{openai-whisper} library to transcribe microphone input in real-time. We use the \texttt{small} model (244M parameters). Since Whisper does not natively support streaming, we implemented a custom async pipeline. that accumulates audio chunks, transcribes them incrementally, and uses silence detection to emit end-of-utterance events.
 \subsubsection{TTS}
-\textbf{Chatterbox-Turbo} (ResembleAI) converts agent text back to speech. This model supports audio prompt conditioning, allowing voice cloning from sample recordings. Since Chatterbox-Turbo does not natively support streaming, audio chunks are queued and played sequentially via \texttt{sounddevice} to achieve pseudo-streaming playback.
+\textbf{Chatterbox-Turbo} (ResembleAI) converts agent text back to speech. This model supports audio prompt conditioning, allowing voice cloning from sample recordings. Since Chatterbox-Turbo does not natively support streaming, audio chunks are queued. and played sequentially via \texttt{sounddevice} to achieve pseudo-streaming playback.
 
 \subsubsection{LLM}
 \textbf{Llama 3.2} (via Ollama) powers the conversational AI. The model is accessed through LangChain's \texttt{ChatOllama} interface with streaming enabled. Responses are yielded incrementally as full sentences are completed. The Teacher and Student clients each run independent instances of Llama 3.2, enabling separate conversational flows and configurable system prompts for each role.
