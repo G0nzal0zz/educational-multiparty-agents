@@ -49,12 +49,6 @@
 \renewcommand{\abstractnamefont}{\normalfont\bfseries}
 \renewcommand{\abstracttextfont}{\normalfont\small}
 
-% --- Guidance command: renders in blue, easy to delete before submission ---
-% To hide all guidance notes, change \guidancetrue to \guidancefalse
-\newif\ifguidance
-\guidancetrue
-\newcommand{\guidance}[1]{\ifguidance\textcolor{blue}{\small\textit{[#1]}}\fi}
-
 % --- Title ---
 \title{\Large\textbf{Real-time Multiparty Disembodied-LLM Dialogue System for Education}}
 
@@ -63,7 +57,7 @@
   Terry Olampi and Arthur Ollivier and Afreen Begum\\
   \textit{Conversational Agents Course -- Final Report} \\
   Heriot-Watt University, Edinburgh, United Kingdom \\
-  \texttt{\{mmk12, gl4003, ...\}@hw.ac.uk}
+  \texttt{\{mmk12, gl4003,au4014, to4004, amo4000, ab4162\}@hw.ac.uk}
 }
 
 \date{}
@@ -267,17 +261,5 @@ Free-text (open-ended) responses.
   \item \textbf{Overall experience?} 5-point heart-rating scale
     (1 = Poor $\rightarrow$ 5 = Excellent).
 \end{enumerate}
-
-
-\section{Ethical Considerations}
-\label{app:ethics}
-
-\guidance{%
-  Address: (1) informed consent, (2) data protection and GDPR compliance,
-  (3) participant rights (voluntary participation, right to withdraw),
-  (4) risk mitigation, and (5) broader considerations such as bias in
-  conversational agents.}
-
-% Write ethical considerations here.
 
 \end{document}
