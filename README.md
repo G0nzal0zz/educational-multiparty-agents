@@ -61,4 +61,4 @@ The video shows the system running in real-time with three panels:
 
 ## Report
 
-The full technical report is available in the repository under `report/report.latex`, or as a PDF in [GitHub Releases](https://github.com/F21CA-Disembodied/coursework-gonzalo/releases/tag/v1.0.0).
+The full technical report is available in the repository under `report/report.latex`, or as a PDF in [GitHub Releases](https://github.com/G0nzal0zz/educational-multiparty-agents/releases/tag/v1.0.0).
