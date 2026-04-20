@@ -1,5 +1,3 @@
-# Triadic Classroom Conversational Agent
-
 A multi-agent spoken dialogue system for educational environments. The system features a Teacher Agent and a Student Agent that interact in real-time, allowing a human learner to overhear and participate in their conversation.
 
 **Objective**: Demonstrate how a multi-agent architecture can foster [vicarious learning](https://en.wikipedia.org/wiki/Vicarious_learning) through autonomous student-teacher interactions in a spoken triadic classroom setting. See the [full report](#Report) for details.
