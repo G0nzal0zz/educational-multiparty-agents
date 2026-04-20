@@ -48,8 +48,10 @@ This project implements a triadic classroom setting where:
 
 ## Demo
 
-Watch on Youtube:
 [![](https://img.youtube.com/vi/aNFK-I0a9sY/maxresdefault.jpg)](https://youtu.be/aNFK-I0a9sY)
+
+> [!NOTE]
+> Click image to watch on YouTube:
 
 The video shows the system running in real-time with three panels:
 
@@ -59,4 +61,4 @@ The video shows the system running in real-time with three panels:
 
 ## Report
 
-The full technical report is available in the repository under `report/build/report.pdf` or at [GitHub Releases](https://github.com/F21CA-Disembodied/coursework-gonzalo/releases/tag/v1.0.0).
+The full technical report is available in the repository under `report/report.latex`, or as a PDF in [GitHub Releases](https://github.com/F21CA-Disembodied/coursework-gonzalo/releases/tag/v1.0.0).
