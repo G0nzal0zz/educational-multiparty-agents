@@ -48,7 +48,7 @@ This project implements a triadic classroom setting where:
 
 ## Demo
 
-[![](https://img.youtube.com/vi/aNFK-I0a9sY/maxresdefault.jpg)](https://youtu.be/aNFK-I0a9sY)
+[![](https://img.youtube.com/vi/Q78YJ_POfog/maxresdefault.jpg)](https://youtu.be/Q78YJ_POfog)
 
 > [!NOTE]
 > Click image to watch on YouTube:
