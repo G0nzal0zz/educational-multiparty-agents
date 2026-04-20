@@ -48,6 +48,7 @@ This project implements a triadic classroom setting where:
 
 ## Demo
 
+<video src='https://rawcdn.githack.com/F21CA-Disembodied/coursework/a035d697be8ce5c5b7dc2bb1180f712682758827/demo.mp4' width=180/>
 See `demo.mp4` for a video demonstration of the system in action.
 
 ## Report
