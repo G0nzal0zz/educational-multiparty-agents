@@ -13,8 +13,8 @@ This project implements a triadic classroom setting where:
 
 ## Tech Stack
 
-- **ASR**: Whisper (OpenAI)
-- **TTS**: Chatterbox-Turbo (ResembleAI)
+- **ASR**: Whisper (OpenAI) - streaming implementation inspired by [whisper_real_time](https://github.com/davabase/whisper_real_time)
+- **TTS**: Chatterbox-Turbo (ResembleAI) - streaming implementation inspired by [chatterbox-streaming](https://github.com/davidbrowne17/chatterbox-streaming)
 - **LLM**: Llama 3.2 (via Ollama)
 - **Protocol**: TCP sockets with JSON events
 
@@ -48,8 +48,13 @@ This project implements a triadic classroom setting where:
 
 ## Demo
 
-<video src='https://rawcdn.githack.com/F21CA-Disembodied/coursework/a035d697be8ce5c5b7dc2bb1180f712682758827/demo.mp4' width=180/>
-See `demo.mp4` for a video demonstration of the system in action.
+[![Watch on YouTube](https://img.youtube.com/vi/aNFK-I0a9sY/maxresdefault.jpg)](https://youtu.be/aNFK-I0a9sY)
+
+`demo.mp4` shows the system running in real-time with three panels:
+
+- **Left panel (Turn-Taking Controller)**: Shows the TTC server logging events as they occur
+- **Top-right panel**: Displays what the Teacher client. 
+- **Bottom-right panel**: Displays what the Student client.
 
 ## Report
 
